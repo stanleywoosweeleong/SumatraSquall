@@ -1,7 +1,7 @@
 // NEA radar proxy for Sumatra Squall Watch (苏门答腊飑线).
 // Holds the data.gov.sg API key so it never appears on GitHub.
 // Secret required: DATA_GOV_SG_API_KEY  (Worker → Settings → Variables and Secrets → Type: Secret)
-// Passes through ONLY the two feeds the app uses: radar images and lightning.
+// Passes through ONLY the feed the app uses: radar images.
 
 const UPSTREAM = 'https://api-open.data.gov.sg/v2/real-time/api';
 const ALLOWED_ORIGINS = ['https://stanleywoosweeleong.github.io', 'null'];   // 'null' = opening index.html from file:// for testing
@@ -15,8 +15,7 @@ function reply(obj, status, extra) {
   return new Response(JSON.stringify(obj), { status, headers: Object.assign({ 'Content-Type': 'application/json' }, extra || {}) });
 }
 function pathAllowed(url) {
-  if (/^\/weather-radar-images\/(70|240|480)km$/.test(url.pathname)) return true;
-  return url.pathname === '/weather' && url.searchParams.get('api') === 'lightning';
+  return /^\/weather-radar-images\/(70|240|480)km$/.test(url.pathname);
 }
 
 export default {

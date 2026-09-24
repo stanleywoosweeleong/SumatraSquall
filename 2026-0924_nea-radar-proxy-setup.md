@@ -1,4 +1,4 @@
-# 新加坡雷达代理设置 · NEA radar proxy setup (ssw-20260924-06)
+# 新加坡雷达代理设置 · NEA radar proxy setup (ssw-20260924-10)
 
 软件先尝试**不用密钥、直接**读取 data.gov.sg。部署后打开地图，看地图下方那一行：
 
@@ -28,7 +28,7 @@
 
 ## 说明
 - 密钥只存在 Cloudflare 的 Secret 里，不会出现在 GitHub。
-- 代理只放行两条：雷达图（70/240/480 km）和闪电。其他路径一律 404。
+- 代理只放行雷达图（70/240/480 km），其他路径一律 404。
 - 只接受来自 `https://stanleywoosweeleong.github.io`、本机 localhost，以及 file://（本地测试）的网页请求。这只能挡住别的网站借用，挡不住刻意伪造的程序；若发现用量异常，到 data.gov.sg 重新生成密钥即可。
 - 在浏览器地址栏直接打开代理网址会看到 `origin not allowed`，这是正常的——只有软件本身能用。
 - 代理出错时软件会写出原因（例如 `proxy has no DATA_GOV_SG_API_KEY secret`），并自动再试一次直接读取。

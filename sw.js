@@ -1,5 +1,5 @@
 /* Sumatra Squall Watch — service worker. CACHE must match VERSION in index.html. */
-const CACHE = 'ssw-20260924-06';
+const CACHE = 'ssw-20260924-10';
 const TILES = 'ssw-tiles';
 const SHELL = ['./', './index.html', './manifest.json', './icon.svg', './icon-192.png', './icon-512.png'];
 const CDN = ['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'];
