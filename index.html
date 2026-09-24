@@ -162,6 +162,14 @@ details.fold[open]>summary::before{transform:rotate(90deg) translate(3px,3px)}
 .leaflet-tooltip.tlab::before{display:none}
 
 /* towns */
+.mstrip{display:grid;grid-template-columns:repeat(21,minmax(0,1fr));gap:2px;margin:8px 0 2px}
+.mcell{display:flex;flex-direction:column;align-items:center;min-width:0}
+.mcell .hh{font-size:.82rem;font-weight:800;height:1.25em;white-space:nowrap;margin-bottom:3px}
+.mcell .bar{width:100%;height:40px;border-radius:2px;border:1px solid #c2d0d9}
+.mcell.gust .bar{box-shadow:inset 0 -7px 0 var(--strong)}
+.mcell .mm{font-size:.72rem;font-weight:700;height:1.2em;font-variant-numeric:tabular-nums}
+.mfacts{display:grid;gap:4px;margin-top:8px}
+.mfacts p{margin:0}
 .tgroup h3{border-bottom:2px solid var(--ink);padding-bottom:3px}
 .town{border-bottom:1px solid #d6e0e6;padding:8px 0}
 .town .tn{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
@@ -254,6 +262,8 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
     <p class="disc" id="disc"></p>
   </section>
 
+  <section class="blk" id="mine"><h2 id="mineHead"></h2><div id="mineBody"></div></section>
+
   <section class="blk" id="map">
     <h2 id="mapHead"></h2>
     <p class="sub" id="mapSub"></p>
@@ -339,8 +349,9 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
    All times are Malaysia Standard Time (UTC+8, no DST): data is fetched in GMT
    as unixtime and shifted by a fixed +8 h, so the device clock never matters.
    ========================================================================== */
-const VERSION = 'ssw-20260925-23';
+const VERSION = 'ssw-20260925-25';
 const MYT = 8 * 3600;
+const APP_NAME = '苏门答腊飑线 Sumatra Squall';   // must equal "name" in manifest.json
 const APP_URL = 'https://stanleywoosweeleong.github.io/SumatraSquall/';   // what the QR code and the WhatsApp message point to
 const LSK = { lang:'ssw.lang', size:'ssw.size', model:'ssw.model', layers:'ssw.layers2', strength:'ssw.strength', home:'ssw.home', homeCache:'ssw.homecache.', cache:'ssw.cache3.' };
 const FETCH_TIMEOUT_MS = 30000;   // covers the whole request, body included
@@ -785,7 +796,14 @@ zh: {
   lvNote:'这是软件自动判读，可能漏判或误判；判读门槛写在「说明 → 自动检测怎么判断」。',
   gAuto:'自动检测怎么判断',
   gAutoBody:'每 5 分钟，软件读取最新的新加坡雷达图（480 公里范围）；雷达照不到的地方（主要是海峡北部）改用日本气象厅的强雨域推定。只看海峡中线两侧 120 公里以内。雷达颜色：青 = 小雨，绿 = 中雨，黄、橙、红、紫 = 大雨；强雨域推定的色块算大雨。把中雨以上的格点（约 5.5 公里一格，容许 11 公里以内的空隙）连成一片：面积至少 800 平方公里、长至少 100 公里、长宽比至少 2.5、走向大致南北到西北—东南，就判为「雷雨带」。与 30 分钟前的图比较，向马来西亚方向移动每小时至少 10 公里，就判为「正在接近」，并按这个速度从雨带前缘算出各城镇的到达时间（超过 6 小时不报时刻）。中雨以上面积少于 300 平方公里算「海峡平静」。能看到的范围不到海峡的 30% 时不作判断。',
-  setHome:'我的地区（用来预报白天的雨）', homeNone:'还没选择', homeChange:'点这里选择', homeHead:'选择你的地区', homeClose:'关闭',
+  setHome:'我的地区（用来预报白天的雨）', homeNone:'还没选择', homeChange:'点这里选择', homeChangeSet:'点这里更改', homeHead:'选择你的地区', homeClose:'关闭',
+  mineHead:'我的地区预报', mineNone:'还没有选择地区。选了之后，这里会显示你那里今晚到明天傍晚逐小时的模型雨量和阵风。',
+  homeSee:'看我的地区预报', homeSeeSub:'逐小时雨量和阵风',
+  mineStripSub:d=>`${d} 00:00 → 20:00 逐小时：色块 = 模型雨量，格下数字 = mm/h，红色底边 = 阵风 ≥45 km/h。点住任一格可看数值。`,
+  mineNight:(f,r,g)=>`凌晨到上午 00–10 时：${f ? `${f} 起有雨或强阵风` : '没有雨或强阵风信号'}；雨量合计 ${r} mm，最大阵风 ${g} km/h。`,
+  mineDay:(f,r,t,m)=>`白天 10–20 时：${f ? `${f} 起下雨` : '没有明显的雨'}；雨量合计 ${r} mm，最大 ${m} mm/h（${t} 前后）。`,
+  mineLag:d=> d ? `若苏门答腊飑线越过海峡中线，约 ${d}后到这里（按模型引导风估算）。` : '若苏门答腊飑线越过海峡中线，要 6 小时以上才到这里——引导风太弱，多半撑不到。',
+  mineNote:'这是模型对这一个点的预报（ECMWF 9 km 或 GFS），时间常差一两个小时，不是官方预报。',
   gpsBtn:'用我现在的位置（GPS）', latLab:'纬度', lonLab:'经度', coordUse:'使用这个坐标',
   coordHint:'例如 3.251 和 102.423。也可以从 Google 地图长按复制「3.251, 102.423」，整串贴进任一格。',
   homePriv:'位置只存在这部手机里；只把坐标发给 Open-Meteo 取得当地预报。',
@@ -953,7 +971,14 @@ en: {
   lvNote:'This is the app reading the pictures automatically — it can miss a storm or raise a false alarm. The thresholds are in Guide → How the automatic check works.',
   gAuto:'How the automatic check works',
   gAutoBody:'Every 5 minutes the app reads the latest Singapore radar picture (480 km range); where the radar cannot see (mainly the northern Strait) it uses JMA Heavy Rain Potential instead. It only looks within 120 km of the Strait mid-line. Radar colours: cyan = light, green = moderate, yellow, orange, red, magenta = heavy; a Heavy Rain Potential patch counts as heavy. Cells of moderate-or-heavier rain (about 5.5 km each, gaps up to 11 km allowed) are joined together; a group at least 800 km² in area, at least 100 km long, at least 2.5 times longer than wide and lying roughly north–south to north-west–south-east is called a "storm band". Compared with the picture 30 minutes earlier, if it moves toward Malaysia at 10 km/h or more it is "approaching", and arrival times for each town are worked out from its leading edge at that speed (no clock time beyond 6 hours). Less than 300 km² of moderate-or-heavier rain is "Strait calm". If less than 30% of the Strait can be seen, no call is made.',
-  setHome:'My area (for the daytime rain forecast)', homeNone:'Not chosen yet', homeChange:'tap to choose', homeHead:'Choose your area', homeClose:'Close',
+  setHome:'My area (for the daytime rain forecast)', homeNone:'Not chosen yet', homeChange:'tap to choose', homeChangeSet:'tap to change', homeHead:'Choose your area', homeClose:'Close',
+  mineHead:'My area forecast', mineNone:'No area chosen yet. Once you choose one, this shows the model\'s hour-by-hour rain and gusts there from tonight until tomorrow evening.',
+  homeSee:'See my area forecast', homeSeeSub:'hourly rain and gusts',
+  mineStripSub:d=>`${d}, 00:00 → 20:00 hour by hour: colour = model rain, number below = mm/h, red bottom edge = gust ≥45 km/h. Press and hold a square for its values.`,
+  mineNight:(f,r,g)=>`Small hours to morning, 00–10: ${f ? `rain or strong gusts from ${f}` : 'no rain or gust signal'}; ${r} mm in total, strongest gust ${g} km/h.`,
+  mineDay:(f,r,t,m)=>`Daytime 10–20: ${f ? `rain from ${f}` : 'no real rain'}; ${r} mm in total, up to ${m} mm/h (around ${t}).`,
+  mineLag:d=> d ? `If a Sumatra squall line crosses the Strait mid-line, it would reach here about ${d} later (from the model steering wind).` : 'If a Sumatra squall line crosses the Strait mid-line, it would take more than 6 hours to reach here — the steering wind is too weak, so it is unlikely to last that long.',
+  mineNote:'This is the model forecast for this one point (ECMWF 9 km or GFS); timing is often an hour or two off, and it is not an official forecast.',
   gpsBtn:'Use my current location (GPS)', latLab:'Latitude', lonLab:'Longitude', coordUse:'Use these coordinates',
   coordHint:'For example 3.251 and 102.423. You can also press and hold in Google Maps, copy "3.251, 102.423" and paste the whole thing into either box.',
   homePriv:'Your location stays on this phone; only the coordinates are sent to Open-Meteo to get the local forecast.',
@@ -1121,7 +1146,14 @@ ms: {
   lvNote:'Ini bacaan automatik oleh perisian — ia boleh terlepas ribut atau memberi amaran palsu. Ambangnya ada di Panduan → Cara semakan automatik berfungsi.',
   gAuto:'Cara semakan automatik berfungsi',
   gAutoBody:'Setiap 5 minit perisian membaca imej radar Singapura terkini (julat 480 km); di kawasan yang radar tidak nampak (terutamanya utara Selat) ia menggunakan Anggaran Hujan Lebat JMA. Ia hanya melihat dalam 120 km dari garis tengah Selat. Warna radar: sian = ringan, hijau = sederhana, kuning, jingga, merah, magenta = lebat; tompok Anggaran Hujan Lebat dikira lebat. Sel hujan sederhana atau lebih lebat (kira-kira 5.5 km setiap satu, jurang sehingga 11 km dibenarkan) dicantumkan; kumpulan yang luasnya sekurang-kurangnya 800 km², panjang sekurang-kurangnya 100 km, sekurang-kurangnya 2.5 kali lebih panjang daripada lebar dan terletak kira-kira utara–selatan hingga barat laut–tenggara dikira "jalur ribut". Berbanding imej 30 minit lebih awal, jika ia bergerak ke arah Malaysia 10 km/j atau lebih, ia "menghampiri", dan masa tiba bagi setiap bandar dikira dari tepi hadapannya pada kelajuan itu (tiada masa jam melebihi 6 jam). Kurang daripada 300 km² hujan sederhana atau lebih lebat dikira "Selat tenang". Jika kurang 30% Selat dapat dilihat, tiada keputusan dibuat.',
-  setHome:'Kawasan saya (untuk ramalan hujan siang)', homeNone:'Belum dipilih', homeChange:'ketik untuk memilih', homeHead:'Pilih kawasan anda', homeClose:'Tutup',
+  setHome:'Kawasan saya (untuk ramalan hujan siang)', homeNone:'Belum dipilih', homeChange:'ketik untuk memilih', homeChangeSet:'ketik untuk menukar', homeHead:'Pilih kawasan anda', homeClose:'Tutup',
+  mineHead:'Ramalan kawasan saya', mineNone:'Belum ada kawasan dipilih. Selepas dipilih, bahagian ini menunjukkan hujan dan tiupan model jam demi jam di sana dari malam ini hingga petang esok.',
+  homeSee:'Lihat ramalan kawasan saya', homeSeeSub:'hujan dan tiupan setiap jam',
+  mineStripSub:d=>`${d}, 00:00 → 20:00 jam demi jam: warna = hujan model, nombor di bawah = mm/j, tepi bawah merah = tiupan ≥45 km/j. Tekan lama petak untuk nilainya.`,
+  mineNight:(f,r,g)=>`Awal pagi hingga pagi, 00–10: ${f ? `hujan atau tiupan kencang mulai ${f}` : 'tiada isyarat hujan atau tiupan'}; jumlah ${r} mm, tiupan paling kuat ${g} km/j.`,
+  mineDay:(f,r,t,m)=>`Siang 10–20: ${f ? `hujan mulai ${f}` : 'tiada hujan ketara'}; jumlah ${r} mm, sehingga ${m} mm/j (sekitar ${t}).`,
+  mineLag:d=> d ? `Jika garis badai Sumatera melintasi garis tengah Selat, ia sampai ke sini kira-kira ${d} kemudian (daripada angin pemandu model).` : 'Jika garis badai Sumatera melintasi garis tengah Selat, ia memerlukan lebih 6 jam untuk sampai ke sini — angin pemandu terlalu lemah, jadi ia mungkin tidak bertahan.',
+  mineNote:'Ini ramalan model bagi satu titik ini (ECMWF 9 km atau GFS); masanya selalu lari sejam dua, dan ia bukan ramalan rasmi.',
   gpsBtn:'Guna lokasi semasa saya (GPS)', latLab:'Latitud', lonLab:'Longitud', coordUse:'Guna koordinat ini',
   coordHint:'Contohnya 3.251 dan 102.423. Anda juga boleh tekan lama di Google Maps, salin "3.251, 102.423" dan tampal keseluruhannya ke mana-mana kotak.',
   homePriv:'Lokasi anda kekal dalam telefon ini; hanya koordinat dihantar kepada Open-Meteo untuk ramalan setempat.',
@@ -1363,13 +1395,14 @@ function analyze() {
   if (ageH > STALE_H) { S.A = { M0, score: null, level: null, blocked: 'stale', ageH, towns: [], parts: null }; return; }
   S.A = analyzeNight(S.D, M0); S.A.strip = stripData(S.D, M0);
 }
-function renderAll() { analyze(); renderStatic(); renderFresh(); renderSettings(); renderLive(); renderVerdict(); renderTowns(); renderMapAll(); }
+function renderAll() { analyze(); renderStatic(); renderFresh(); renderSettings(); renderLive(); renderVerdict(); renderMine(); renderTowns(); renderMapAll(); }
 
 function renderStatic() {
   document.documentElement.lang = S.lang === 'ms' ? 'ms' : S.lang === 'en' ? 'en' : 'zh';
   document.documentElement.style.setProperty('--fs', SIZES[S.size] + 'px');
   $('appTitle').textContent = T('appTitle');
-  document.title = T('appTitle');
+  const installed = window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: minimal-ui)').matches);
+  document.title = installed ? APP_NAME : T('appTitle');   // installed: title bar shows the name once, not "name - title"
   $('btnLang').textContent = T('langShort');
   $('btnSize').title = T('aaTitle'); $('btnSize').setAttribute('aria-label', T('aaTitle'));
   $('liveHead').textContent = T('liveHead');
@@ -1408,7 +1441,8 @@ function renderFresh() {
 function renderSettings() {
   const ht = homeTown();
   const hl = !ht ? T('homeNone') : ht.custom ? T('homeCoord', ht.lat.toFixed(3), ht.lon.toFixed(3), T(ht.lat === S.home.lat && S.home.src === 'gps' ? 'srcGps' : 'srcManual')) : tname(ht);
-  $('segHome').innerHTML = `<button data-homepick="1" aria-pressed="${!!ht}">${esc(hl)}<small>${esc(T('homeChange'))}</small></button>`;
+  $('segHome').innerHTML = `<button data-homepick="1" aria-pressed="${!!ht}">${esc(hl)}<small>${esc(T(ht ? 'homeChangeSet' : 'homeChange'))}</small></button>` +
+    (ht ? `<button data-go="mine">${esc(T('homeSee'))}<small>${esc(T('homeSeeSub'))}</small></button>` : '');
   const now = nowSec(), today0 = mytMidnight(now);
   $('segNight').innerHTML = [0, 1].map(w => {
     const M0 = nightMorning(now, w), rel = Math.round((M0 - today0) / 86400);
@@ -1546,6 +1580,39 @@ function renderIngredients() {
   $('ing').innerHTML = rows + `<div class="itot"><span>${esc(T('total'))}</span><span>${f1(tot)} / ${wt} → ${S.A.score}</span></div>` + gate;
 }
 
+const MY_RAIN = [[0.5,'#eef2f4'],[2.5,'#b9d9ff'],[7,'#4f95ff'],[20,'#ffb000'],[1e9,'#e026c9']];
+/** everything the model says about the user's own place for the chosen night and the day after, 00:00–20:00 */
+function renderMine() {
+  $('mineHead').textContent = T('mineHead');
+  const box = $('mineBody'), h = homeTown(), A = S.A, D = S.D;
+  if (!h) { box.innerHTML = `<p>${esc(T('mineNone'))}</p><div class="seg"><button data-homepick="1">${esc(T('homeNone'))} — ${esc(T('homeChange'))}</button></div>`; return; }
+  const name = h.custom ? T('homeCoord', h.lat.toFixed(3), h.lon.toFixed(3), T(S.home.src === 'gps' ? 'srcGps' : 'srcManual')) : tname(h);
+  let html = `<p class="vnight">${esc(name)}</p>`;
+  if (!A || !D) { box.innerHTML = html + `<p>${esc(T('loading'))}</p>`; return; }
+  if (A.blocked === 'stale' || A.blocked === 'window') { box.innerHTML = html + `<p class="banner red">${esc(A.blocked === 'stale' ? T('blkStale', Math.floor(A.ageH)) : T('nightNoData'))}</p>`; return; }
+  const ser = D.towns && D.towns[h.id];
+  if (!ser) { box.innerHTML = html + `<p>${esc(h.custom ? (S.homeErr ? T('homeErr', S.homeErr) : T('homeLoading')) : T('dayNoData', name))}</p>`; return; }
+  const M0 = A.M0, cells = [];
+  for (let a = 0; a <= 20; a++) { const t = M0 + a * 3600, i = D.idx.get(t); cells.push({ t, pr: i == null ? null : ser.pr[i], gu: i == null ? null : ser.gu[i] }); }
+  const now = nowSec();
+  html += `<p class="sub">${esc(T('mineStripSub', T('mornWord')[Math.round((M0 - mytMidnight(now)) / 86400)] || ''))}</p><div class="mstrip">` + cells.map(c => {
+    const p = mytParts(c.t), col = c.pr == null ? '#f4f4f4' : colBy(MY_RAIN, c.pr), isNow = now >= c.t && now < c.t + 3600;
+    const tip = hhmm(c.t) + ' — ' + (c.pr == null ? '—' : f1(c.pr) + ' mm/h') + (c.gu == null ? '' : ', ' + Math.round(c.gu) + ' km/h');
+    return `<div class="mcell${c.gu != null && c.gu >= THR.sigGust ? ' gust' : ''}" title="${esc(tip)}" aria-label="${esc(tip)}"><span class="hh">${p.h % 3 === 0 ? String(p.h).padStart(2, '0') : ''}</span><span class="bar" style="background:${col}${isNow ? ';outline:3px solid var(--ink);outline-offset:-3px' : ''}"></span><span class="mm">${c.pr != null && c.pr >= 0.5 ? Math.round(c.pr) : ''}</span></div>`;
+  }).join('') + '</div>';
+  html += `<div class="stripkey">${MY_RAIN.map((r, i, a) => `<span><i class="sw" style="background:${r[1]}"></i>${i === 0 ? T('keyNone') : (a[i - 1][0] + (i === a.length - 1 ? '+' : '–' + r[0])) + ' mm/h'}</span>`).join('')}<span><i class="sw" style="box-shadow:inset 0 -5px 0 #b42318"></i>${esc(T('keyGust'))}</span></div>`;
+  // facts: the squall hours and the working day, each with its numbers
+  const part = (a, b) => { let rain = 0, got = 0, mx = 0, mxT = null, gx = null, first = null;
+    for (const c of cells) { const hr = (c.t - M0) / 3600; if (hr < a || hr > b || c.pr == null) continue; got++; rain += c.pr; if (c.pr > mx) { mx = c.pr; mxT = c.t; } if (c.gu != null && (gx == null || c.gu > gx)) gx = c.gu; if (first == null && (c.pr >= THR.sigRain || (c.gu != null && c.gu >= THR.sigGust))) first = c.t; }
+    return got ? { rain, mx, mxT, gx, first } : null; };
+  const n = part(0, THR.workEnd), d = part(THR.workEnd, THR.dayEnd), f = [];
+  if (n) f.push(T('mineNight', n.first ? hhmm(n.first) : null, f1(n.rain), n.gx == null ? '—' : Math.round(n.gx)));
+  if (d) f.push(T('mineDay', n && n.first == null && d.first == null ? null : d.first ? hhmm(d.first) : null, f1(d.rain), d.mxT ? hhmm(d.mxT) : '—', f1(d.mx)));
+  if (h.g !== 'east' && A.steer) { const lag = lagFromAxis(h.lat, h.lon, A.steer); if (lag && !lag.upwind) f.push(T('mineLag', lag.h > THR.etaMaxH ? null : T('dur', lag.h))); }
+  if (h.g === 'east') f.push(T('eastNote'));
+  html += `<div class="mfacts">${f.map(x => `<p>${esc(x)}</p>`).join('')}</div><p class="sub">${esc(T('mineNote'))}</p>`;
+  box.innerHTML = html;
+}
 function renderTowns() {
   const A = S.A, box = $('townList');
   if (!A) { box.innerHTML = ''; return; }
@@ -2181,7 +2248,7 @@ document.addEventListener('click', ev => {
   else if (b.dataset.go) { $(b.dataset.go).scrollIntoView({ behavior: 'smooth' }); }
   else if (b.dataset.lang) { setLang(b.dataset.lang); $('langOvl').hidden = true; }
   else if (b.dataset.homepick) showHomePicker();
-  else if (b.dataset.home) { S.home = b.dataset.home; lsSet(LSK.home, S.home); if (S.D && S.D.towns) delete S.D.towns.home; S.homeReq = (S.homeReq || 0) + 1; $('homeOvl').hidden = true; renderAll(); }
+  else if (b.dataset.home) { S.home = b.dataset.home; lsSet(LSK.home, S.home); if (S.D && S.D.towns) delete S.D.towns.home; S.homeReq = (S.homeReq || 0) + 1; $('homeOvl').hidden = true; renderAll(); $('mine').scrollIntoView({ behavior: 'smooth' }); }
   else if (b.id === 'homeClose') $('homeOvl').hidden = true;
 });
 $('btnReload').onclick = () => refresh(true);
@@ -2234,7 +2301,7 @@ function setCustomHome(la, lo, src) {
   if (!inCover(la, lo)) { $('homeMsg').textContent = T('coordOut'); return false; }
   S.home = { lat: la, lon: lo, src }; S.homeErr = null; lsSet(LSK.home, S.home);
   if (S.D && S.D.towns) delete S.D.towns.home;           // the previous point's rain must not show under the new point
-  $('homeOvl').hidden = true; renderAll(); loadHome(true); return true;
+  $('homeOvl').hidden = true; renderAll(); loadHome(true); $('mine').scrollIntoView({ behavior: 'smooth' }); return true;
 }
 /** the model's hourly rain for the user's own point (one extra Open-Meteo location, cached like the rest) */
 function attachHome(c) {
