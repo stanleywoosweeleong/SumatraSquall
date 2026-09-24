@@ -205,6 +205,14 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
 .ovl .card h2{font-size:1.3rem}
 .ovl .lbtn{display:block;width:100%;min-height:58px;margin:10px 0;border:2px solid var(--sea);background:#fff;color:var(--sea-d);border-radius:5px;font-size:1.2rem;font-weight:800}
 .ovl .lbtn[aria-pressed="true"]{background:var(--sea);color:#fff}
+.coord{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.coord label{display:grid;gap:4px;font-weight:700}
+.coord input{font:inherit;font-size:1.1rem;font-weight:600;min-height:48px;padding:6px 10px;border:2px solid var(--sea);border-radius:4px;width:100%;color:var(--ink);background:#fff}
+.homemsg{font-weight:800;color:var(--strong);min-height:1em}
+#btnGps,#btnCoord{min-height:48px;border:2px solid var(--sea);background:var(--sea);color:#fff;border-radius:4px;padding:4px 14px;font-weight:800}
+.homecard{max-height:86vh;overflow-y:auto}
+.homecard h3{margin:14px 0 4px}
+.homecard .seg button{min-width:6.5em}
 .toast{position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:1500;background:var(--ink);color:#fff;border:0;border-radius:6px;padding:14px;font-weight:700;text-align:left}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -225,6 +233,7 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
     <div class="settings">
       <div class="setrow"><div class="lab" id="setNight"></div><div class="seg" id="segNight"></div></div>
       <div class="setrow"><div class="lab" id="setModel"></div><div class="seg" id="segModel"></div></div>
+      <div class="setrow"><div class="lab" id="setHome"></div><div class="seg" id="segHome"></div></div>
     </div>
   </section>
 
@@ -299,6 +308,20 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
   <button class="navb" data-go="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M8 7h7M8 11h7"/></svg><span id="navGuide"></span></button>
 </nav>
 
+<div class="ovl" id="homeOvl" hidden><div class="card homecard">
+  <h2 id="homeHead"></h2>
+  <div class="seg"><button id="btnGps"></button></div>
+  <div class="coord">
+    <label><span id="latLab"></span><input id="inLat" type="text" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+    <label><span id="lonLab"></span><input id="inLon" type="text" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+  </div>
+  <p class="sub" id="coordHint"></p>
+  <div class="seg"><button id="btnCoord"></button></div>
+  <p class="homemsg" id="homeMsg" role="status"></p>
+  <p class="sub" id="homePriv"></p>
+  <div id="homeList"></div>
+  <button class="lbtn" id="homeClose"></button>
+</div></div>
 <div class="ovl" id="langOvl" hidden><div class="card">
   <h2 id="pickLang">请选择语言 · Choose language · Pilih bahasa</h2>
   <p class="sub" id="pickLangSub"></p>
@@ -316,10 +339,10 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
    All times are Malaysia Standard Time (UTC+8, no DST): data is fetched in GMT
    as unixtime and shifted by a fixed +8 h, so the device clock never matters.
    ========================================================================== */
-const VERSION = 'ssw-20260924-18';
+const VERSION = 'ssw-20260924-21';
 const MYT = 8 * 3600;
 const APP_URL = 'https://stanleywoosweeleong.github.io/SumatraSquall/';   // what the QR code and the WhatsApp message point to
-const LSK = { lang:'ssw.lang', size:'ssw.size', model:'ssw.model', layers:'ssw.layers2', strength:'ssw.strength', cache:'ssw.cache3.' };
+const LSK = { lang:'ssw.lang', size:'ssw.size', model:'ssw.model', layers:'ssw.layers2', strength:'ssw.strength', home:'ssw.home', homeCache:'ssw.homecache.', cache:'ssw.cache3.' };
 const MIN_RELOAD_MIN = 30;   // no re-fetch sooner than this (Open-Meteo is a shared free service)
 const AUTO_MIN = 60;         // auto re-fetch when the page is open and data is older than this
 const STALE_H = 6;           // red banner beyond this
@@ -383,6 +406,7 @@ const THR = {
   sigRain: 2, sigGust: 45,                              // town "signal": ≥2 mm/h or gust ≥45 km/h
   gateCap: 30,                                          // cap when steering points away from Malaysia
   townTo: 10,                                           // town window 00–10 MYT: later hours are daytime storms, not the squall
+  workStart: 6, workEnd: 10, dayEnd: 20,               // dayEnd: spray advice also looks at rain until 20:00                            // the farm's morning work hours (MYT) the advice is written for
   etaMaxH: 6,                                           // beyond this a squall line rarely holds together — say so instead of a clock time
 };
 const W8 = { steer:25, cape:15, conv:20, rain:20, gust:15, season:5 };
@@ -667,6 +691,17 @@ function lineEta(c, mv, lat, lon) {
   if (!mv || mv.kmh < DET.moveKmh) return { side, km: ahead };
   return { side, km: ahead, h: ahead / mv.kmh };
 }
+/** first rainy hour (≥ THR.sigRain) at a town during the working day, and the wettest hour */
+function dayRain(D, tid, M0) {
+  const T_ = D.towns && D.towns[tid]; if (!T_) return null;
+  let first = null, max = 0, maxT = null, got = 0;
+  for (const t of hoursIdx(D, M0, THR.workStart, THR.dayEnd).map(h => [D.times[h], T_.pr[h]])) {
+    if (t[1] == null) continue; got++;
+    if (first == null && t[1] >= THR.sigRain) first = t[0];
+    if (t[1] > max) { max = t[1]; maxT = t[0]; }
+  }
+  return got ? { first, max, maxT } : null;
+}
 /*ENGINE-END*/
 
 /* ---------- i18n ---------- */
@@ -724,22 +759,38 @@ zh: {
   lvNote:'这是软件自动判读，可能漏判或误判；判读门槛写在「说明 → 自动检测怎么判断」。',
   gAuto:'自动检测怎么判断',
   gAutoBody:'每 5 分钟，软件读取最新的新加坡雷达图（480 公里范围）；雷达照不到的地方（主要是海峡北部）改用日本气象厅的强雨域推定。只看海峡中线两侧 120 公里以内。雷达颜色：青 = 小雨，绿 = 中雨，黄、橙、红、紫 = 大雨；强雨域推定的色块算大雨。把中雨以上的格点（约 5.5 公里一格，容许 11 公里以内的空隙）连成一片：面积至少 800 平方公里、长至少 100 公里、长宽比至少 2.5、走向大致南北到西北—东南，就判为「雷雨带」。与 30 分钟前的图比较，向马来西亚方向移动每小时至少 10 公里，就判为「正在接近」，并按这个速度从雨带前缘算出各城镇的到达时间（超过 6 小时不报时刻）。中雨以上面积少于 300 平方公里算「海峡平静」。能看到的范围不到海峡的 30% 时不作判断。',
+  setHome:'我的地区（用来预报白天的雨）', homeNone:'还没选择', homeChange:'点这里选择', homeHead:'选择你的地区', homeClose:'关闭',
+  gpsBtn:'用我现在的位置（GPS）', latLab:'纬度', lonLab:'经度', coordUse:'使用这个坐标',
+  coordHint:'例如 3.251 和 102.423。也可以从 Google 地图长按复制「3.251, 102.423」，整串贴进任一格。',
+  homePriv:'位置只存在这部手机里；只把坐标发给 Open-Meteo 取得当地预报。',
+  gpsWait:'正在取得位置…', gpsDenied:'手机没有允许本软件使用位置。可以在手机设置里允许，或直接输入坐标。', gpsFail:r=>`取不到位置（${r}）。请到空旷处再试，或直接输入坐标。`, gpsNo:'这个浏览器不支持定位，请直接输入坐标。',
+  coordBad:'看不懂这个坐标。请输入两个数字：纬度和经度，例如 3.251 和 102.423。', coordOut:'这个位置不在马来西亚的覆盖范围（北纬 0.5–7.6°，东经 99.3–119.6°）。请检查纬度和经度有没有填反。',
+  homeCoord:(la,lo,src)=>`我的位置 ${la}, ${lo}（${src}）`, srcGps:'GPS', srcManual:'手动输入',
+  homeLoading:'我的位置：正在读取当地的模型雨量…', homeErr:r=>`我的位置：当地雨量读取失败（${r}）。`, lgHome:'黄色圈 = 我的位置',
+  dayWord:['今天','明天','后天'],
+  dayDry:(t,d)=>`${t}：模型显示${d} 06:00–20:00 没有明显的雨（每小时 ≥2 mm），白天可按计划喷药。`,
+  dayRainAt:(t,d,st,mx,mh,dry)=>`${t}：模型显示${d} ${st} 起有雨（最大约 ${mx} mm/h，${mh} 前后）。${dry ? `在那之前是干的——喷药要早，喷完到 ${dry} 之间要留够药剂标签写的耐雨时间。` : '早上就有雨，喷药改到雨停以后，或改天。'}模型的时间常差一两个小时。`,
+  dayAreaWet:(d,n,all,st,t)=>`${d}白天：西海岸和内陆 ${all} 个城镇中，${n} 个模型显示有雨，最早 ${st}（${t}）。在上面「我的地区」选你的地方，就能看到当地几点开始下雨。`,
+  dayAreaDry:(d,all)=>`${d}白天：西海岸和内陆 ${all} 个城镇，模型都显示 06:00–20:00 没有明显的雨。在上面「我的地区」选你的地方，可看当地详情。`,
+  dayNoData:t=>`${t}：暂时没有白天的模型雨量资料。`,
   advHead:'建议（默认做法）',
-  advLikely:w=>[
-    `默认：明早 ${w} 前后不安排喷药、施肥和无人机作业。飑线一般一两个小时内过境，过后再开工。`,
-    '已安排在今晚或明早喷的药，改到飑线过后——刚喷上的药会被大雨冲掉。',
+  advLikely:(w,d,early)=>[
+    early ? `模型显示飑线在${d} ${w} 经过，比平常开工早。默认：照常开工，但出门前先看页面最上方的实况，确认「海峡平静」或雷雨带已经过去。`
+          : `默认：${d} ${w} 不安排喷药、施肥和无人机作业。飑线一般一两个小时内过境，过后再开工。`,
+    early ? '开工前若刚喷过药，雨后检查一下，需要时补喷——大雨会把刚喷上的药冲掉。'
+          : `原本安排在${d}喷的药，改到飑线过后——刚喷上的药会被大雨冲掉。`,
     '榴莲结果期：强阵风会吹落果实。飑线过境时不要站在树下，过后再巡园捡果。',
     '收好梯子和网具，固定遮阳网、临时棚；清理排水沟。',
-    '清晨骑摩托上工的员工，避开这个时段出门。',
+    ...(early ? [] : ['骑摩托上工的员工，避开这个时段出门。']),
     '本软件整夜每 5 分钟自动读一次雷达：一旦飑线出现，页面最上方会写出它在哪里、往哪里走、几点到哪个城镇。'],
-  advWatch:w=>[
+  advWatch:(w,d,early)=>[
     '配置一般：飑线可能出现，也可能在海峡上就散掉。本软件整夜每 5 分钟自动读雷达，结果写在页面最上方。',
-    `默认：明早 ${w} 前后先不喷药、不放无人机。若最上方显示「海峡平静」，就照常开工。`,
+    early ? `模型关注时段在${d} ${w}，比开工早。默认：照常开工；若最上方显示雷雨带正在接近，再暂停。`
+          : `默认：${d} ${w} 先不喷药、不放无人机。若最上方显示「海峡平静」，就照常开工。`,
     '榴莲结果期：若最上方显示雷雨带正在接近，等它过去再巡园。'],
+  mornWord:['今早','明早','后天早上'],
   advLow:()=>[
-    '今晚的配置不利于苏门答腊飑线，早上的工作照常安排。',
-    '午后局部雷阵雨是另一回事——本软件只看凌晨到上午的飑线。'],
-  winDefault:'0–10 时',
+    '今晚的配置不利于苏门答腊飑线，早上的工作照常安排。'],
   stripHead:'海峡逐小时（18:00 → 12:00 MYT）',
   stripSub:'色块 = 模型在海峡上 ≥2 mm/h 降雨的格点比例；箭头 = 引导风，指向风暴被推去的方向（红 = 推向马来西亚，淡色虚线 = 太弱，深灰 = 方向不对）；红色底边 = 西海岸阵风 ≥45 km/h。点任一小时，可在地图上打开。',
   keyNone:'无雨', keySome:'零星', keyBand:'成片', keyGust:'阵风 ≥45', keyArrowHow:'箭头指向 = 风暴被推去的方向，越长风越强：', arrowKind:{good:'推向马来西亚',weak:'太弱，推不动',wrong:'方向不对'}, arrowTip:(d,k,w)=>`引导风来自${d}，${k} km/h，${w}`,
@@ -869,22 +920,38 @@ en: {
   lvNote:'This is the app reading the pictures automatically — it can miss a storm or raise a false alarm. The thresholds are in Guide → How the automatic check works.',
   gAuto:'How the automatic check works',
   gAutoBody:'Every 5 minutes the app reads the latest Singapore radar picture (480 km range); where the radar cannot see (mainly the northern Strait) it uses JMA Heavy Rain Potential instead. It only looks within 120 km of the Strait mid-line. Radar colours: cyan = light, green = moderate, yellow, orange, red, magenta = heavy; a Heavy Rain Potential patch counts as heavy. Cells of moderate-or-heavier rain (about 5.5 km each, gaps up to 11 km allowed) are joined together; a group at least 800 km² in area, at least 100 km long, at least 2.5 times longer than wide and lying roughly north–south to north-west–south-east is called a "storm band". Compared with the picture 30 minutes earlier, if it moves toward Malaysia at 10 km/h or more it is "approaching", and arrival times for each town are worked out from its leading edge at that speed (no clock time beyond 6 hours). Less than 300 km² of moderate-or-heavier rain is "Strait calm". If less than 30% of the Strait can be seen, no call is made.',
+  setHome:'My area (for the daytime rain forecast)', homeNone:'Not chosen yet', homeChange:'tap to choose', homeHead:'Choose your area', homeClose:'Close',
+  gpsBtn:'Use my current location (GPS)', latLab:'Latitude', lonLab:'Longitude', coordUse:'Use these coordinates',
+  coordHint:'For example 3.251 and 102.423. You can also press and hold in Google Maps, copy "3.251, 102.423" and paste the whole thing into either box.',
+  homePriv:'Your location stays on this phone; only the coordinates are sent to Open-Meteo to get the local forecast.',
+  gpsWait:'Getting your location…', gpsDenied:'The phone has not allowed this app to use location. Allow it in the phone settings, or type the coordinates.', gpsFail:r=>`Could not get your location (${r}). Try again in the open, or type the coordinates.`, gpsNo:'This browser cannot give a location; please type the coordinates.',
+  coordBad:'Those coordinates could not be read. Enter two numbers, latitude and longitude, e.g. 3.251 and 102.423.', coordOut:'That point is outside the area this app covers (0.5–7.6° N, 99.3–119.6° E). Check that latitude and longitude are not swapped.',
+  homeCoord:(la,lo,src)=>`My location ${la}, ${lo} (${src})`, srcGps:'GPS', srcManual:'typed',
+  homeLoading:'My location: loading the local model rain…', homeErr:r=>`My location: local rain failed to load (${r}).`, lgHome:'yellow ring = my location',
+  dayWord:['today','tomorrow','the day after'],
+  dayDry:(t,d)=>`${t}: the model shows no real rain (≥2 mm per hour) ${d} between 06:00 and 20:00 — spray as planned during the day.`,
+  dayRainAt:(t,d,st,mx,mh,dry)=>`${t}: the model has rain from ${st} ${d} (up to about ${mx} mm/h around ${mh}). ${dry ? `It is dry before then — spray early, so that the rain-free time on the product label ends before ${dry}.` : 'Rain already in the morning: spray after it stops, or on another day.'} Model timing is often an hour or two off.`,
+  dayAreaWet:(d,n,all,st,t)=>`During the day ${d}: ${n} of ${all} west-coast and interior towns get rain in the model, earliest ${st} (${t}). Choose your place under "My area" above to see when rain starts there.`,
+  dayAreaDry:(d,all)=>`During the day ${d}: the model shows no real rain between 06:00 and 20:00 at any of the ${all} west-coast and interior towns. Choose your place under "My area" above for local detail.`,
+  dayNoData:t=>`${t}: no daytime model rain data right now.`,
   advHead:'What to do (default plan)',
-  advLikely:w=>[
-    `Default: no spraying, fertilising or drone work around ${w} tomorrow morning. A squall line usually passes within an hour or two; carry on after it.`,
-    'Move any spraying planned for tonight or early tomorrow to after the squall — heavy rain washes fresh spray off.',
+  advLikely:(w,d,early)=>[
+    early ? `The model has the squall line passing ${w} ${d}, before the usual start of work. Default: start work as normal, but check the live panel at the top first — "Strait calm" or the band already past.`
+          : `Default: no spraying, fertilising or drone work ${w} ${d}. A squall line usually passes within an hour or two; carry on after it.`,
+    early ? 'If anything was sprayed just before, check it after the rain and re-spray if needed — heavy rain washes fresh spray off.'
+          : `Move any spraying planned for ${d} to after the squall — heavy rain washes fresh spray off.`,
     'Durian fruiting season: strong gusts knock fruit down. Stay out from under the trees while it passes; collect fallen fruit afterwards.',
     'Put away ladders and nets, tie down shade netting and temporary shelters, and clear the drains.',
-    'Workers who ride motorcycles to work early should avoid travelling in that window.',
+    ...(early ? [] : ['Workers who ride motorcycles to work should avoid travelling in that window.']),
     'This app reads the radar itself every 5 minutes through the night: as soon as a squall line appears, the top of the page says where it is, where it is heading and when it reaches each town.'],
-  advWatch:w=>[
+  advWatch:(w,d,early)=>[
     'Mixed setup: a squall line may form, or may die over the Strait. This app reads the radar every 5 minutes through the night and shows the result at the top of the page.',
-    `Default: hold off spraying and drone work around ${w} tomorrow morning. If the top of the page says "Strait calm", go ahead as normal.`,
+    early ? `The model window to watch is ${w} ${d}, before work starts. Default: start as normal; pause only if the top of the page shows a storm band approaching.`
+          : `Default: hold off spraying and drone work ${w} ${d}. If the top of the page says "Strait calm", go ahead as normal.`,
     'Durian fruiting season: if the top of the page shows a storm band approaching, do the orchard round after it has passed.'],
+  mornWord:['this morning','tomorrow morning','the morning after'],
   advLow:()=>[
-    'Tonight\'s setup does not favour a Sumatra squall. Plan the morning as usual.',
-    'Afternoon local thunderstorms are a separate matter — this app only looks at the pre-dawn to morning squall.'],
-  winDefault:'00:00–10:00',
+    'Tonight\'s setup does not favour a Sumatra squall. Plan the morning as usual.'],
   stripHead:'The Strait, hour by hour (18:00 → 12:00 MYT)',
   stripSub:'Colour = share of Strait points where the model rains ≥2 mm/h. Arrow = steering wind, pointing where storms are pushed (red = toward Malaysia, pale dashed = too weak, dark grey = wrong direction). Red bottom edge = west-coast gust ≥45 km/h. Tap an hour to open it on the map.',
   keyNone:'no rain', keySome:'scattered', keyBand:'banded', keyGust:'gust ≥45', keyArrowHow:'The arrow points where storms are pushed; longer = stronger:', arrowKind:{good:'pushing toward Malaysia',weak:'too weak to push',wrong:'wrong direction'}, arrowTip:(d,k,w)=>`steering wind from the ${d}, ${k} km/h, ${w}`,
@@ -1014,22 +1081,38 @@ ms: {
   lvNote:'Ini bacaan automatik oleh perisian — ia boleh terlepas ribut atau memberi amaran palsu. Ambangnya ada di Panduan → Cara semakan automatik berfungsi.',
   gAuto:'Cara semakan automatik berfungsi',
   gAutoBody:'Setiap 5 minit perisian membaca imej radar Singapura terkini (julat 480 km); di kawasan yang radar tidak nampak (terutamanya utara Selat) ia menggunakan Anggaran Hujan Lebat JMA. Ia hanya melihat dalam 120 km dari garis tengah Selat. Warna radar: sian = ringan, hijau = sederhana, kuning, jingga, merah, magenta = lebat; tompok Anggaran Hujan Lebat dikira lebat. Sel hujan sederhana atau lebih lebat (kira-kira 5.5 km setiap satu, jurang sehingga 11 km dibenarkan) dicantumkan; kumpulan yang luasnya sekurang-kurangnya 800 km², panjang sekurang-kurangnya 100 km, sekurang-kurangnya 2.5 kali lebih panjang daripada lebar dan terletak kira-kira utara–selatan hingga barat laut–tenggara dikira "jalur ribut". Berbanding imej 30 minit lebih awal, jika ia bergerak ke arah Malaysia 10 km/j atau lebih, ia "menghampiri", dan masa tiba bagi setiap bandar dikira dari tepi hadapannya pada kelajuan itu (tiada masa jam melebihi 6 jam). Kurang daripada 300 km² hujan sederhana atau lebih lebat dikira "Selat tenang". Jika kurang 30% Selat dapat dilihat, tiada keputusan dibuat.',
+  setHome:'Kawasan saya (untuk ramalan hujan siang)', homeNone:'Belum dipilih', homeChange:'ketik untuk memilih', homeHead:'Pilih kawasan anda', homeClose:'Tutup',
+  gpsBtn:'Guna lokasi semasa saya (GPS)', latLab:'Latitud', lonLab:'Longitud', coordUse:'Guna koordinat ini',
+  coordHint:'Contohnya 3.251 dan 102.423. Anda juga boleh tekan lama di Google Maps, salin "3.251, 102.423" dan tampal keseluruhannya ke mana-mana kotak.',
+  homePriv:'Lokasi anda kekal dalam telefon ini; hanya koordinat dihantar kepada Open-Meteo untuk ramalan setempat.',
+  gpsWait:'Sedang mendapatkan lokasi…', gpsDenied:'Telefon tidak membenarkan perisian ini menggunakan lokasi. Benarkan dalam tetapan telefon, atau taip koordinat.', gpsFail:r=>`Lokasi tidak dapat diperoleh (${r}). Cuba lagi di kawasan lapang, atau taip koordinat.`, gpsNo:'Pelayar ini tidak dapat memberi lokasi; sila taip koordinat.',
+  coordBad:'Koordinat itu tidak dapat dibaca. Masukkan dua nombor, latitud dan longitud, cth. 3.251 dan 102.423.', coordOut:'Titik itu di luar kawasan liputan perisian ini (0.5–7.6° U, 99.3–119.6° T). Semak latitud dan longitud tidak tertukar.',
+  homeCoord:(la,lo,src)=>`Lokasi saya ${la}, ${lo} (${src})`, srcGps:'GPS', srcManual:'ditaip',
+  homeLoading:'Lokasi saya: sedang memuat hujan model setempat…', homeErr:r=>`Lokasi saya: hujan setempat gagal dimuat (${r}).`, lgHome:'bulatan kuning = lokasi saya',
+  dayWord:['hari ini','esok','lusa'],
+  dayDry:(t,d)=>`${t}: model tidak menunjukkan hujan yang ketara (≥2 mm sejam) ${d} antara 06:00 dan 20:00 — sembur seperti dirancang pada siang hari.`,
+  dayRainAt:(t,d,st,mx,mh,dry)=>`${t}: model menunjukkan hujan mulai ${st} ${d} (sehingga kira-kira ${mx} mm/j sekitar ${mh}). ${dry ? `Kering sebelum itu — sembur awal, supaya tempoh tahan hujan pada label produk tamat sebelum ${dry}.` : 'Hujan sudah pada waktu pagi: sembur selepas hujan berhenti, atau pada hari lain.'} Masa model selalunya lari sejam dua.`,
+  dayAreaWet:(d,n,all,st,t)=>`Siang ${d}: ${n} daripada ${all} bandar pantai barat dan pedalaman menerima hujan dalam model, paling awal ${st} (${t}). Pilih tempat anda di "Kawasan saya" di atas untuk melihat bila hujan bermula di sana.`,
+  dayAreaDry:(d,all)=>`Siang ${d}: model tidak menunjukkan hujan yang ketara antara 06:00 dan 20:00 di mana-mana ${all} bandar pantai barat dan pedalaman. Pilih tempat anda di "Kawasan saya" di atas untuk butiran setempat.`,
+  dayNoData:t=>`${t}: tiada data hujan model siang buat masa ini.`,
   advHead:'Tindakan (pelan asas)',
-  advLikely:w=>[
-    `Pelan asas: tiada semburan, pembajaan atau kerja dron sekitar ${w} esok pagi. Garis badai biasanya berlalu dalam sejam dua; sambung selepas itu.`,
-    'Pindahkan semburan yang dirancang malam ini atau awal pagi esok ke selepas garis badai — hujan lebat membasuh racun yang baru disembur.',
+  advLikely:(w,d,early)=>[
+    early ? `Model menunjukkan garis badai melintas ${w} ${d}, sebelum waktu kerja biasa. Pelan asas: mula kerja seperti biasa, tetapi semak panel langsung di atas dahulu — "Selat tenang" atau jalur sudah berlalu.`
+          : `Pelan asas: tiada semburan, pembajaan atau kerja dron ${w} ${d}. Garis badai biasanya berlalu dalam sejam dua; sambung selepas itu.`,
+    early ? 'Jika ada yang baru disembur sebelum itu, semak selepas hujan dan sembur semula jika perlu — hujan lebat membasuh racun yang baru disembur.'
+          : `Pindahkan semburan yang dirancang ${d} ke selepas garis badai — hujan lebat membasuh racun yang baru disembur.`,
     'Musim berbuah durian: tiupan kencang menggugurkan buah. Jangan berdiri di bawah pokok semasa ia melintas; kutip buah gugur selepas itu.',
     'Simpan tangga dan jaring, ikat jaring teduhan dan bangsal sementara, dan bersihkan longkang.',
-    'Pekerja yang menunggang motosikal awal pagi elakkan perjalanan dalam tempoh itu.',
+    ...(early ? [] : ['Pekerja yang menunggang motosikal ke tempat kerja elakkan perjalanan dalam tempoh itu.']),
     'Perisian ini membaca radar sendiri setiap 5 minit sepanjang malam: sebaik garis badai muncul, bahagian atas halaman menyatakan di mana ia, ke mana arahnya dan bila ia sampai ke setiap bandar.'],
-  advWatch:w=>[
+  advWatch:(w,d,early)=>[
     'Keadaan bercampur: garis badai mungkin terbentuk, atau lenyap di atas Selat. Perisian ini membaca radar setiap 5 minit sepanjang malam dan memaparkan hasilnya di bahagian atas halaman.',
-    `Pelan asas: tangguhkan semburan dan kerja dron sekitar ${w} esok pagi. Jika bahagian atas halaman menyatakan "Selat tenang", teruskan seperti biasa.`,
+    early ? `Tempoh model untuk diperhati ialah ${w} ${d}, sebelum kerja bermula. Pelan asas: mula seperti biasa; berhenti hanya jika bahagian atas halaman menunjukkan jalur ribut menghampiri.`
+          : `Pelan asas: tangguhkan semburan dan kerja dron ${w} ${d}. Jika bahagian atas halaman menyatakan "Selat tenang", teruskan seperti biasa.`,
     'Musim berbuah durian: jika bahagian atas halaman menunjukkan jalur ribut menghampiri, ronda kebun selepas ia berlalu.'],
+  mornWord:['pagi ini','esok pagi','lusa pagi'],
   advLow:()=>[
-    'Keadaan malam ini tidak menggalakkan garis badai Sumatera. Rancang kerja pagi seperti biasa.',
-    'Ribut petir tempatan waktu petang ialah perkara lain — perisian ini hanya melihat garis badai subuh hingga pagi.'],
-  winDefault:'00:00–10:00',
+    'Keadaan malam ini tidak menggalakkan garis badai Sumatera. Rancang kerja pagi seperti biasa.'],
   stripHead:'Selat, jam demi jam (18:00 → 12:00 MYT)',
   stripSub:'Warna = bahagian titik Selat yang model beri hujan ≥2 mm/j. Anak panah = angin pemandu, menunjuk ke mana ribut ditolak (merah = ke arah Malaysia, pucat bergaris putus = terlalu lemah, kelabu gelap = arah salah). Tepi bawah merah = tiupan pantai barat ≥45 km/j. Ketik mana-mana jam untuk membukanya di peta.',
   keyNone:'tiada hujan', keySome:'bertaburan', keyBand:'berjalur', keyGust:'tiupan ≥45', keyArrowHow:'Anak panah menunjuk ke mana ribut ditolak; lebih panjang = lebih kuat:', arrowKind:{good:'menolak ke arah Malaysia',weak:'terlalu lemah untuk menolak',wrong:'arah salah'}, arrowTip:(d,k,w)=>`angin pemandu dari ${d}, ${k} km/j, ${w}`,
@@ -1224,9 +1307,14 @@ async function refresh(force) {
   if (res) { S.fallbackNote = res.fell; S.err = null; S.townErr = res.townErr || null; useRaw(res.raw); }
   else { S.err = err; if (cached) useRaw(cached); }
   renderAll();
+  loadHome(false);
   if (S.pending) { S.pending = false; refresh(false); }
 }
-function useRaw(raw) { S.D = buildD(raw.model, raw.modelId, raw.at, raw.g, raw.t); S.D.townId = raw.townId || null; S.D.empty = raw.empty || []; }
+function useRaw(raw) {
+  S.D = buildD(raw.model, raw.modelId, raw.at, raw.g, raw.t); S.D.townId = raw.townId || null; S.D.empty = raw.empty || [];
+  const h = homeTown(), c = h && h.custom ? lsGet(LSK.homeCache + raw.model, null) : null;
+  if (c && c.lat === h.lat && c.lon === h.lon) attachHome(c);        // no flicker: show the saved point at once
+}
 
 /* ---------- rendering ---------- */
 function analyze() {
@@ -1244,7 +1332,7 @@ function renderStatic() {
   $('btnLang').textContent = T('langShort');
   $('btnSize').title = T('aaTitle'); $('btnSize').setAttribute('aria-label', T('aaTitle'));
   $('liveHead').textContent = T('liveHead');
-  for (const k of ['navVerdict','navMap','navTowns','navGuide','setTitle','setNight','setModel','advHead','stripHead','stripSub','ingHead','disc','mapHead','mapSub','slNote','townsHead','townsSub','guideHead'])
+  for (const k of ['navVerdict','navMap','navTowns','navGuide','setTitle','setNight','setModel','setHome','advHead','stripHead','stripSub','ingHead','disc','mapHead','mapSub','slNote','townsHead','townsSub','guideHead'])
     $(k).textContent = T(k);
   $('foot').textContent = T('foot', VERSION);
   $('shareHead').textContent = T('shareHead'); $('shareSub').textContent = T('shareSub');
@@ -1277,6 +1365,9 @@ function renderFresh() {
 }
 
 function renderSettings() {
+  const ht = homeTown();
+  const hl = !ht ? T('homeNone') : ht.custom ? T('homeCoord', ht.lat.toFixed(3), ht.lon.toFixed(3), T(ht.lat === S.home.lat && S.home.src === 'gps' ? 'srcGps' : 'srcManual')) : tname(ht);
+  $('segHome').innerHTML = `<button data-homepick="1" aria-pressed="${!!ht}">${esc(hl)}<small>${esc(T('homeChange'))}</small></button>`;
   const now = nowSec(), today0 = mytMidnight(now);
   $('segNight').innerHTML = [0, 1].map(w => {
     const M0 = nightMorning(now, w), rel = Math.round((M0 - today0) / 86400);
@@ -1322,10 +1413,18 @@ function renderVerdict() {
   if (e && A.level !== 'low') { $('vEarly').hidden = false; $('vEarly').textContent = T('earliest', tname(e.town), hhmm(e.first)); }
   else $('vEarly').hidden = true;
   // advice window: from earliest west-coast signal to latest first-signal + 2 h, else default
-  let win = T('winDefault');
+  // nobody sprays at 2 am: the advice talks about the morning work hours. A storm window that closes before work
+  // starts gets "carry on, but check the live panel first" instead of "hold off".
+  const ws = A.M0 + THR.workStart * 3600, we = A.M0 + THR.workEnd * 3600;
+  let win = hhmm(ws) + '–' + hhmm(we), early = false;
   const firsts = A.towns.filter(r => r.town.g === 'west' && r.first != null).map(r => r.first);
-  if (firsts.length) { const a = Math.min(...firsts), b = Math.min(Math.max(...firsts) + 7200, A.M0 + 12 * 3600); win = hhmm(a) + '–' + hhmm(b); }
-  const adv = A.level === 'low' ? T('advLow') : A.level === 'watch' ? T('advWatch', win) : T('advLikely', win);
+  if (firsts.length) {
+    const a = Math.min(...firsts), b = Math.min(Math.max(...firsts) + 7200, A.M0 + 12 * 3600);
+    if (b <= ws) { early = true; win = hhmm(a) + '–' + hhmm(b); } else win = hhmm(Math.max(a, ws)) + '–' + hhmm(b);
+  }
+  const relDay = Math.round((A.M0 - mytMidnight(nowSec())) / 86400), day = T('mornWord')[relDay] || T('mornWord')[1];
+  const adv = (A.level === 'low' ? T('advLow') : A.level === 'watch' ? T('advWatch', win, day, early) : T('advLikely', win, day, early)).slice();
+  adv.splice(1, 0, dayRainAdvice(A.M0, relDay));   // the rest of the working day, right after the squall default
   $('adv').innerHTML = adv.map(s => `<li>${esc(s)}</li>`).join('');
   renderStrip(); renderIngredients();
 }
@@ -1349,6 +1448,22 @@ function arrowSVG(st) {
 }
 /** legend sample: the very same drawing as in the strip */
 function arrowKey(kind, to) { return `<svg class="akey" viewBox="0 0 24 24" aria-hidden="true">${arrowPath(kind, to, 8)}</svg>`; }
+/** spray advice for the rest of the day: the user's own area, or a west-coast summary until one is chosen */
+function dayRainAdvice(M0, relDay) {
+  const dw = T('dayWord')[relDay] || T('dayWord')[1], D = S.D;
+  const home = homeTown();
+  if (home) {
+    const r = dayRain(D, home.id, M0);
+    if (!r) return home.custom ? (S.homeErr ? T('homeErr', S.homeErr) : T('homeLoading')) : T('dayNoData', tname(home));
+    if (r.first == null) return T('dayDry', tname(home), dw);
+    const dryTo = r.first > M0 + THR.workStart * 3600 ? hhmm(r.first) : null;
+    return T('dayRainAt', tname(home), dw, hhmm(r.first), f1(r.max), hhmm(r.maxT), dryTo);
+  }
+  const rs = TOWNS.filter(t => t.g !== 'east').map(t => ({ t, r: dayRain(D, t.id, M0) })).filter(x => x.r);
+  const wet = rs.filter(x => x.r.first != null).sort((a, b) => a.r.first - b.r.first);
+  if (!rs.length) return T('dayNoData', '—');
+  return wet.length ? T('dayAreaWet', dw, wet.length, rs.length, hhmm(wet[0].r.first), tname(wet[0].t)) : T('dayAreaDry', dw, rs.length);
+}
 function renderStrip() {
   const cells = S.A.strip, now = nowSec();
   $('strip').innerHTML = cells.map((c, i) => {
@@ -1586,6 +1701,9 @@ function renderModelLayers() {
 }
 function renderTownMarkers() {
   if (!MAP.m) return; MAP.groups.towns.clearLayers();
+  const hm = homeTown();
+  if (hm && hm.custom) L.circleMarker([hm.lat, hm.lon], { pane: 'marks', radius: 10, weight: 4, color: '#ffd400', fillColor: '#0b6674', fillOpacity: 1 })
+    .bindTooltip(tname(hm), { direction: 'right', offset: [10, 0], permanent: true, className: 'tlab' }).addTo(MAP.groups.towns);
   if (!S.layers.towns || !S.A) return;
   for (const r of S.A.towns) {
     const sig = r.first != null;
@@ -1617,6 +1735,7 @@ function renderMapControls() {
   if (S.layers.conv) lg.push(`<span class="lg">${esc(T('lgConv'))}</span>`);
   if (S.layers.nea) lg.push(`<span class="lg">${esc(T('lgNea'))}</span>`, `<span class="lg">${esc(T('lgBox'))}</span>`);
   if (S.layers.hrp) lg.push(`<span class="lg">${esc(T('lgHrp'))}</span>`);
+  { const hm = homeTown(); if (hm && hm.custom) lg.push(`<span class="lg"><i class="sw" style="background:#0b6674;border:3px solid #ffd400;border-radius:50%"></i>${esc(T('lgHome'))}</span>`); }
   lg.push(`<span class="lg"><i class="sw" style="background:#ff3b30;height:6px;border:0"></i>${esc(T('lgLive'))}</span>`, `<span class="lg">${esc(T('lgAxis'))}</span>`);
   $('legend').innerHTML = lg.join('');
   renderLiveSrc();
@@ -1932,7 +2051,8 @@ function renderLive() {
   if (st === 'approach' || st === 'line') {
     const now = nowSec(), base = LIVE.rTs || LIVE.hTs || now;   // the band was where it was at the picture's time
     const arr = e => base + Math.round(e.h * 3600), left = e => Math.max(0, (arr(e) - now) / 3600);
-    const rows = TOWNS.filter(t => t.g !== 'east').map(t => ({ t, e: lineEta(c, LIVE.mv, t.lat, t.lon) }))
+    const hm = homeTown(), places = TOWNS.filter(t => t.g !== 'east').concat(hm && hm.custom && hm.g !== 'east' ? [hm] : []);
+    const rows = places.map(t => ({ t, e: lineEta(c, LIVE.mv, t.lat, t.lon) }))
       .filter(r => r.e.now || r.e.h != null).sort((a, b) => (a.e.now ? -1 : a.e.h) - (b.e.now ? -1 : b.e.h));
     const first = rows.find(r => r.e.now || (r.e.h != null && r.e.h <= THR.etaMaxH));
     if (st === 'approach' && first) html += `<div class="lvact">${esc(T('lvAct', tname(first.t), first.e.now || arr(first.e) <= now ? T('lvNow') : hhmm(arr(first.e))))}</div>`;
@@ -1982,8 +2102,20 @@ document.addEventListener('click', ev => {
   else if (b.dataset.pos != null) { S.hourPos = +b.dataset.pos; ensureForecastLayer(); renderMapAll(); $('map').scrollIntoView({ behavior: 'smooth' }); }
   else if (b.dataset.go) { $(b.dataset.go).scrollIntoView({ behavior: 'smooth' }); }
   else if (b.dataset.lang) { setLang(b.dataset.lang); $('langOvl').hidden = true; }
+  else if (b.dataset.homepick) showHomePicker();
+  else if (b.dataset.home) { S.home = b.dataset.home; lsSet(LSK.home, S.home); $('homeOvl').hidden = true; renderAll(); }
+  else if (b.id === 'homeClose') $('homeOvl').hidden = true;
 });
 $('btnReload').onclick = () => refresh(true);
+$('btnGps').onclick = () => {
+  if (!navigator.geolocation) { $('homeMsg').textContent = T('gpsNo'); return; }
+  $('homeMsg').textContent = T('gpsWait');
+  navigator.geolocation.getCurrentPosition(
+    p => setCustomHome(p.coords.latitude, p.coords.longitude, 'gps'),
+    e => { $('homeMsg').textContent = e.code === 1 ? T('gpsDenied') : T('gpsFail', e.message || ('code ' + e.code)); },
+    { enableHighAccuracy: false, timeout: 20000, maximumAge: 10 * 60000 });
+};
+$('btnCoord').onclick = () => { const c = parseCoords($('inLat').value, $('inLon').value); if (!c) $('homeMsg').textContent = T('coordBad'); else setCustomHome(c.lat, c.lon, 'manual'); };
 $('btnCopy').onclick = async () => {
   let done = false;
   try { await navigator.clipboard.writeText(APP_URL); done = true; } catch (e) {
@@ -2008,6 +2140,53 @@ function showLangPicker() {
   $('pickLangSub').textContent = S.lang ? T('pickLangSub') : '';
   document.querySelectorAll('#langOvl .lbtn').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === S.lang)));
   $('langOvl').hidden = false;
+}
+/* ---------- my area: a listed town, or the user's own coordinates (GPS or typed) ---------- */
+function inCover(la, lo) { return isFinite(la) && isFinite(lo) && la >= 0.5 && la <= 7.6 && lo >= 99.3 && lo <= 119.6; }   // Peninsula + Sabah/Sarawak
+function validHome(h) { return (typeof h === 'string' && TOWNS.some(t => t.id === h)) || (!!h && typeof h === 'object' && inCover(h.lat, h.lon)); }
+function homeTown() {
+  if (!S.home) return null;
+  if (typeof S.home === 'string') return TOWNS.find(t => t.id === S.home) || null;
+  return { id: 'home', g: S.home.lon > 108 ? 'east' : 'west', lat: S.home.lat, lon: S.home.lon, zh: '我的位置', en: 'My location', ms: 'Lokasi saya', custom: true };
+}
+/** "3.251, 102.423" pasted into either box (e.g. from Google Maps) or one number per box */
+function parseCoords(a, b) { const m = (String(a) + ' ' + String(b || '')).match(/-?\d+(?:\.\d+)?/g); return m && m.length >= 2 ? { lat: +m[0], lon: +m[1] } : null; }
+function setCustomHome(la, lo, src) {
+  la = Math.round(la * 1000) / 1000; lo = Math.round(lo * 1000) / 1000;          // ~100 m: plenty for a 9 km model, less precise to store
+  if (!inCover(la, lo)) { $('homeMsg').textContent = T('coordOut'); return false; }
+  S.home = { lat: la, lon: lo, src }; S.homeErr = null; lsSet(LSK.home, S.home);
+  $('homeOvl').hidden = true; renderAll(); loadHome(true); return true;
+}
+/** the model's hourly rain for the user's own point (one extra Open-Meteo location, cached like the rest) */
+function attachHome(c) {
+  if (!S.D) return; if (!S.D.towns) S.D.towns = {};
+  const off = new Map(c.t.times.map((ts, i) => [ts, i])), o = {};
+  for (const key of Object.values(TKEYS)) o[key] = S.D.times.map(ts => { const i = off.get(ts); return i == null ? null : c.t.series[key][0][i]; });
+  S.D.towns.home = o;
+}
+async function loadHome(force) {
+  const h = homeTown(); if (!h || !h.custom || !S.D) return;
+  const id = S.D.townId || MODELS[S.D.model].towns[0], key = LSK.homeCache + S.D.model;
+  let c = lsGet(key, null);
+  const same = !!c && c.lat === h.lat && c.lon === h.lon && c.id === id;
+  if (same) attachHome(c);
+  if (!force && same && Date.now() - c.at < MIN_RELOAD_MIN * 60000) return;
+  S.homeLoading = true; S.homeErr = null;
+  try {
+    const t = parseMulti(await fetchJSON(omURL([h], TVARS, id, null)), 1, TKEYS);
+    c = { lat: h.lat, lon: h.lon, id, at: Date.now(), t }; lsSet(key, c); attachHome(c);
+  } catch (e) { S.homeErr = e.message || String(e); }
+  S.homeLoading = false; renderAll();
+}
+function showHomePicker() {
+  $('btnGps').textContent = T('gpsBtn'); $('btnCoord').textContent = T('coordUse');
+  $('latLab').textContent = T('latLab'); $('lonLab').textContent = T('lonLab');
+  $('coordHint').textContent = T('coordHint'); $('homePriv').textContent = T('homePriv'); $('homeMsg').textContent = '';
+  const h = homeTown(); $('inLat').value = h && h.custom ? h.lat : ''; $('inLon').value = h && h.custom ? h.lon : '';
+  $('homeHead').textContent = T('homeHead'); $('homeClose').textContent = T('homeClose');
+  $('homeList').innerHTML = ['west', 'inland', 'east'].map(g => `<h3>${esc(T('grp')[g])}</h3><div class="seg">` +
+    TOWNS.filter(t => t.g === g).map(t => `<button data-home="${t.id}" aria-pressed="${S.home === t.id}">${esc(tname(t))}</button>`).join('') + '</div>').join('');
+  $('homeOvl').hidden = false;
 }
 function setLang(l) { S.lang = l; lsSet(LSK.lang, l); renderAll(); }
 function setDefaultHour() {
@@ -2043,6 +2222,7 @@ function boot() {
   S.lang = lsGet(LSK.lang, null);
   S.size = lsGet(LSK.size, 0); if (!(S.size >= 0 && S.size < SIZES.length)) S.size = 0;
   S.model = lsGet(LSK.model, 'ecmwf'); if (!MODELS[S.model]) S.model = 'ecmwf';
+  S.home = lsGet(LSK.home, null); if (!validHome(S.home)) S.home = null;
   S.strength = lsGet(LSK.strength, 1); if (!(S.strength >= 0 && S.strength <= 2)) S.strength = 1;
   const savedLy = lsGet(LSK.layers, {});   // only keys this version knows (an older build stored 'radar')
   for (const k of Object.keys(S.layers)) if (typeof savedLy[k] === 'boolean') S.layers[k] = savedLy[k];
