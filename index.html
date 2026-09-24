@@ -291,9 +291,9 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
    All times are Malaysia Standard Time (UTC+8, no DST): data is fetched in GMT
    as unixtime and shifted by a fixed +8 h, so the device clock never matters.
    ========================================================================== */
-const VERSION = 'ssw-20260924-15';
+const VERSION = 'ssw-20260924-16';
 const MYT = 8 * 3600;
-const LSK = { lang:'ssw.lang', size:'ssw.size', model:'ssw.model', layers:'ssw.layers2', strength:'ssw.strength', cache:'ssw.cache.' };
+const LSK = { lang:'ssw.lang', size:'ssw.size', model:'ssw.model', layers:'ssw.layers2', strength:'ssw.strength', cache:'ssw.cache3.' };
 const MIN_RELOAD_MIN = 30;   // no re-fetch sooner than this (Open-Meteo is a shared free service)
 const AUTO_MIN = 60;         // auto re-fetch when the page is open and data is older than this
 const STALE_H = 6;           // red banner beyond this
@@ -491,7 +491,8 @@ function analyzeNight(D, M0) {
 
   let sum = 0, wsum = 0; const missing = [];
   for (const key of Object.keys(W8)) { const p = parts[key]; p.w = W8[key]; if (p.missing) { missing.push(key); continue; } p.pts = p.score * p.w; sum += p.pts; wsum += p.w; }
-  let score = wsum ? Math.round(sum / wsum * 100) : null;
+  // the season alone says nothing about a particular night: with no model ingredient there is no score
+  let score = wsum > W8.season ? Math.round(sum / wsum * 100) : null;
   let gate = false;
   if (score != null && parts.steer.df === 0 && score > THR.gateCap) { score = THR.gateCap; gate = true; }
   const towns = TOWNS.map(t => townResult(D, t, M0, st));
@@ -527,6 +528,7 @@ const DET = {
   radarKm: 470,                 // usable radar range from Changi
   gap: 2,                       // cells of gap allowed inside one band (~11 km)
   sideKm: 60,                   // a town beyond the band's end by more than this may be missed
+  radarMaxMin: 30, hrpMaxMin: 60,   // older pictures than this are not used as "now"
 };
 const RADAR_C = [1.34911, 103.972583];
 function kmBetween(la1, lo1, la2, lo2) { const dx = (lo2 - lo1) * 111.32 * Math.cos((la1 + la2) / 2 * Math.PI / 180), dy = (la2 - la1) * 110.57; return Math.hypot(dx, dy); }
@@ -614,7 +616,8 @@ function detectGrid(v, cov) {
   groups.sort((a, b) => b.km2 - a.km2);
   // the biggest group is "the" band; a few more are kept so movement can be matched to the same storm next time
   const clusters = groups.filter((g, i) => i === 0 || g.km2 >= DET.clearKm2).slice(0, 6).map(g => shapeOf(g.mem, g.km2));
-  return { zoneKm2, covFrac: zoneKm2 ? covKm2 / zoneKm2 : 0, strongKm2, cluster: clusters[0] || null, clusters };
+  const line = clusters.find(c => c.isLine);
+  return { zoneKm2, covFrac: zoneKm2 ? covKm2 / zoneKm2 : 0, strongKm2, cluster: line || clusters[0] || null, clusters };
 }
 /** movement of the band between two pictures dtH hours apart (km/h toward Malaysia; bearing of travel) */
 function motion(cNow, cPast, dtH) {
@@ -677,6 +680,8 @@ zh: {
   rGustHi:(g,t,hh)=>`模型显示西海岸阵风可达 ${g} km/h（${t} ${hh}）。`,
   earliest:(t,hh)=>`模型最早信号：${t} 约 ${hh}（MYT）。飑线的实际时间常与模型差一两个小时，以向日葵卫星图为准。`,
   liveHead:'现在的海峡（自动检测）',
+  nightNoData:'所选那一夜不在已读取的模型资料范围内，无法计算。请点「重新读取」。',
+  lvStale:'最新的雷达和卫星图都太旧，不能当作现在的情况', lvRadarOld:m=>`新加坡雷达最新一张已是 ${m} 分钟前，没有用来判读。`, lvRadarFail:r=>`新加坡雷达图读取失败（${r}），这次只用卫星判读。`, lvHrpOld:m=>`强雨域推定最新一张已是 ${m} 分钟前，没有用来判读。`,
   lvState:{approach:'雷雨带正在接近',line:'海峡上有雷雨带',scattered:'零散雷雨',clear:'海峡平静',nodata:'暂无实况'},
   nmSquall:'苏门答腊飑线', nmBand:'一条雷雨带',
   lvApproach:(nm,dir,k)=>`${nm}正在向${dir}移动，约 ${k} km/h。`,
@@ -817,6 +822,8 @@ en: {
   rGustHi:(g,t,hh)=>`The model gives west-coast gusts up to ${g} km/h (${t}, ${hh}).`,
   earliest:(t,hh)=>`Earliest model signal: ${t} around ${hh} MYT. Real squalls often run an hour or two off the model — trust the Himawari satellite.`,
   liveHead:'The Strait right now (automatic)',
+  nightNoData:'The chosen night is outside the model data that was loaded, so it cannot be scored. Tap Reload.',
+  lvStale:'the newest radar and satellite pictures are too old to count as now', lvRadarOld:m=>`The newest Singapore radar picture is ${m} min old and was not used.`, lvRadarFail:r=>`The Singapore radar picture failed to load (${r}); this reading uses the satellite only.`, lvHrpOld:m=>`The newest Heavy Rain Potential picture is ${m} min old and was not used.`,
   lvState:{approach:'Storm band approaching',line:'Storm band over the Strait',scattered:'Scattered storms',clear:'Strait calm',nodata:'No live reading'},
   nmSquall:'A Sumatra squall line', nmBand:'A line of thunderstorms',
   lvApproach:(nm,dir,k)=>`${nm} is moving ${dir} at about ${k} km/h.`,
@@ -957,6 +964,8 @@ ms: {
   rGustHi:(g,t,hh)=>`Model memberi tiupan kencang pantai barat sehingga ${g} km/j (${t}, ${hh}).`,
   earliest:(t,hh)=>`Isyarat model terawal: ${t} sekitar ${hh} MYT. Garis badai sebenar selalunya lari sejam dua daripada model — percayai satelit Himawari.`,
   liveHead:'Selat sekarang (automatik)',
+  nightNoData:'Malam yang dipilih di luar data model yang dimuat, jadi tidak dapat dikira. Tekan Muat semula.',
+  lvStale:'imej radar dan satelit terkini terlalu lama untuk dikira sebagai sekarang', lvRadarOld:m=>`Imej radar Singapura terkini sudah ${m} minit lalu dan tidak digunakan.`, lvRadarFail:r=>`Imej radar Singapura gagal dimuat (${r}); bacaan ini guna satelit sahaja.`, lvHrpOld:m=>`Imej Anggaran Hujan Lebat terkini sudah ${m} minit lalu dan tidak digunakan.`,
   lvState:{approach:'Jalur ribut menghampiri',line:'Jalur ribut di atas Selat',scattered:'Ribut bertaburan',clear:'Selat tenang',nodata:'Tiada bacaan langsung'},
   nmSquall:'Garis badai Sumatera', nmBand:'Satu jalur ribut petir',
   lvApproach:(nm,dir,k)=>`${nm} sedang bergerak ke ${dir} kira-kira ${k} km/j.`,
@@ -1167,19 +1176,20 @@ async function loadModel(model) {
 function cacheKey(model) { return LSK.cache + model; }
 
 async function refresh(force) {
-  if (S.loading) return;
-  const cached = lsGet(cacheKey(S.model), null);
+  if (S.loading) { S.pending = true; return; }          // a model switch during a load is replayed when it finishes
+  const model = S.model;
+  const cached = lsGet(cacheKey(model), null);
   if (!force && cached && (Date.now() - cached.at) < MIN_RELOAD_MIN * 60000) { useRaw(cached); S.err = null; renderAll(); return; }
-  S.loading = true; renderFresh();
-  try {
-    const res = await loadModel(S.model);
-    S.fallbackNote = res.fell; S.err = null; S.townErr = res.townErr || null;
-    useRaw(res.raw);
-    if (!lsSet(cacheKey(S.model), res.raw)) { /* storage full — keep working from memory */ }
-  } catch (e) {
-    S.err = e.message || String(e);
-    if (cached) useRaw(cached);
-  } finally { S.loading = false; renderAll(); }
+  S.loading = true; S.pending = false; renderFresh();
+  let res = null, err = null;
+  try { res = await loadModel(model); } catch (e) { err = e.message || String(e); }
+  if (res) lsSet(cacheKey(model), res.raw);             // always filed under the model it came from
+  S.loading = false;
+  if (S.model !== model) { refresh(false); return; }     // user switched meanwhile: this result is not for the screen
+  if (res) { S.fallbackNote = res.fell; S.err = null; S.townErr = res.townErr || null; useRaw(res.raw); }
+  else { S.err = err; if (cached) useRaw(cached); }
+  renderAll();
+  if (S.pending) { S.pending = false; refresh(false); }
 }
 function useRaw(raw) { S.D = buildD(raw.model, raw.modelId, raw.at, raw.g, raw.t); S.D.townId = raw.townId || null; S.D.empty = raw.empty || []; }
 
@@ -1202,7 +1212,7 @@ function renderStatic() {
   for (const k of ['navVerdict','navMap','navTowns','navGuide','setTitle','setNight','setModel','advHead','stripHead','stripSub','ingHead','disc','mapHead','mapSub','slNote','townsHead','townsSub','guideHead'])
     $(k).textContent = T(k);
   $('foot').textContent = T('foot', VERSION);
-  renderGuide();
+  if (S.guideLang !== S.lang) { renderGuide(); S.guideLang = S.lang; }
 }
 
 function renderFresh() {
@@ -1260,7 +1270,8 @@ function renderVerdict() {
   const now = nowSec(), M0 = nightMorning(now, S.night), rel = Math.round((M0 - mytMidnight(now)) / 86400);
   $('vNight').textContent = (T('nightRel')[rel] || '') + '  ' + T('nightDate', mytParts(M0 - 86400), mytParts(M0));
   if (!A || A.score == null) {
-    $('vLevel').textContent = S.loading ? T('loading') : T('noData'); $('vScore').textContent = ''; $('vReason').textContent = '';
+    $('vLevel').textContent = S.loading ? T('loading') : T('noData'); $('vScore').textContent = '';
+    $('vReason').textContent = A && !S.loading ? T('nightNoData') : '';
     $('vEarly').hidden = true; $('adv').innerHTML = ''; $('strip').innerHTML = ''; $('stripKey').innerHTML = ''; $('ing').innerHTML = ''; return;
   }
   $('vLevel').textContent = T('levels')[A.level];
@@ -1573,7 +1584,10 @@ function renderLiveSrc() {
   const bits = [], N = MAP.nea;
   if (S.layers.nea) {
     if (N.err) bits.push(T('neaErr', N.err) + ' ' + T(NEA_PROXY ? 'neaHintProxy' : 'neaHintNoProxy'));
-    else if (N.idx >= 0 && N.slots[N.idx] != null) bits.push(T('neaTime', hhmm(N.slots[N.idx])) + (S.lang === 'zh' ? '。' : '.'));
+    else if (N.idx >= 0 && N.slots[N.idx] != null) {
+      const last = N.slots[N.slots.length - 1], age = Math.round((nowSec() - last) / 60);
+      bits.push(T('neaTime', hhmm(N.slots[N.idx])) + (S.lang === 'zh' ? '。' : '.') + (age > DET.radarMaxMin ? ' ' + T('lvRadarOld', age) : ''));
+    }
     else if (N.loadedAt) bits.push(T('neaNone'));
   }
   if (S.layers.sat) {
@@ -1832,12 +1846,14 @@ async function runDetector() {
   try {
     if (typeof createImageBitmap === 'undefined') throw new Error('this browser cannot read image pixels');
     const N = MAP.nea, fr = N.frames[480] || [], bb = N.bb[480] || NEA_BB[480];
-    const rNow = fr[fr.length - 1] || null;
+    const tnow = nowSec(), rLast = fr[fr.length - 1] || null, rOld = rLast && tnow - rLast.ts > DET.radarMaxMin * 60;
+    const rNow = rOld ? null : rLast;
     const rPast = rNow ? fr.slice().reverse().find(f => rNow.ts - f.ts >= DET.lookMin * 60 - 150) || null : null;
     let hr = []; try { hr = jmaFrames(await fetchJSON(JMA_HRP_TIMES, 1)); } catch (e) {}
-    const hNow = hr[hr.length - 1] || null;
+    const hLast = hr[hr.length - 1] || null, hOld = hLast && tnow - hLast.ts > DET.hrpMaxMin * 60;
+    const hNow = hOld ? null : hLast;
     const hPast = hNow ? hr.slice().reverse().find(f => hNow.ts - f.ts >= DET.lookMin * 60 - 300) || null : null;
-    if (!rNow && !hNow) throw new Error(N.err || 'no radar or satellite pictures');
+    if (!rNow && !hNow) throw new Error(rOld || hOld ? T('lvStale') : (N.err || 'no radar or satellite pictures'));
     const now = await buildGrid(rNow, hNow, bb);
     let mv = null;
     if (now.res.cluster && (rPast || hPast)) {
@@ -1847,7 +1863,11 @@ async function runDetector() {
       const prev = (past.res.clusters || []).slice().sort((a, b) => Math.hypot(a.x - c0.x, a.y - c0.y) - Math.hypot(b.x - c0.x, b.y - c0.y))[0] || null;
       mv = motion(c0, prev, dt);
     }
-    Object.assign(LIVE, { res: now.res, mv, err: now.rErr && !hNow ? now.rErr : null, rTs: rNow && !now.rErr ? rNow.ts : null, hTs: hNow ? hNow.ts : null, at: Date.now() });
+    const notes = [];
+    if (rOld) notes.push(T('lvRadarOld', Math.round((tnow - rLast.ts) / 60)));
+    else if (now.rErr) notes.push(T('lvRadarFail', now.rErr));
+    if (hOld) notes.push(T('lvHrpOld', Math.round((tnow - hLast.ts) / 60)));
+    Object.assign(LIVE, { res: now.res, mv, notes, err: now.rErr && !hNow ? now.rErr : null, rTs: rNow && !now.rErr ? rNow.ts : null, hTs: hNow ? hNow.ts : null, at: Date.now() });
     LIVE.state = liveState(now.res, mv);
   } catch (e) { Object.assign(LIVE, { state: 'nodata', err: e.message || String(e), res: null, mv: null, at: Date.now() }); }
   LIVE.busy = false;
@@ -1869,14 +1889,15 @@ function renderLive() {
   if (c && (st === 'line' || st === 'approach')) html += ' ' + esc(T('lvDims', Math.round(c.len / 10) * 10, Math.round(c.km2 / 100) * 100));
   html += '</p>';
   if (st === 'approach' || st === 'line') {
-    const now = nowSec();
+    const now = nowSec(), base = LIVE.rTs || LIVE.hTs || now;   // the band was where it was at the picture's time
+    const arr = e => base + Math.round(e.h * 3600), left = e => Math.max(0, (arr(e) - now) / 3600);
     const rows = TOWNS.filter(t => t.g !== 'east').map(t => ({ t, e: lineEta(c, LIVE.mv, t.lat, t.lon) }))
       .filter(r => r.e.now || r.e.h != null).sort((a, b) => (a.e.now ? -1 : a.e.h) - (b.e.now ? -1 : b.e.h));
     const first = rows.find(r => r.e.now || (r.e.h != null && r.e.h <= THR.etaMaxH));
-    if (st === 'approach' && first) html += `<div class="lvact">${esc(T('lvAct', tname(first.t), first.e.now ? T('lvNow') : hhmm(now + Math.round(first.e.h * 3600))))}</div>`;
+    if (st === 'approach' && first) html += `<div class="lvact">${esc(T('lvAct', tname(first.t), first.e.now || arr(first.e) <= now ? T('lvNow') : hhmm(arr(first.e))))}</div>`;
     if (st === 'line') html += `<div class="lvact">${esc(T('lvActLine'))}</div>`;
     if (rows.length) html += `<b>${esc(T('lvEtaHead'))}</b><table class="lveta">` + rows.slice(0, 10).map(r => {
-      const e = r.e, cell = e.now ? T('lvNow') : e.h > THR.etaMaxH ? T('etaLong') : T('etaIn', T('dur', e.h), hhmm(now + Math.round(e.h * 3600)));
+      const e = r.e, cell = e.now || (e.h != null && arr(e) <= now) ? T('lvNow') : e.h > THR.etaMaxH ? T('etaLong') : T('etaIn', T('dur', left(e)), hhmm(arr(e)));
       return `<tr><td>${esc(tname(r.t))}${e.side ? esc(T('lvSide')) : ''}</td><td>${esc(cell)}</td></tr>`;
     }).join('') + '</table>';
   }
@@ -1884,6 +1905,7 @@ function renderLive() {
   if (LIVE.rTs) src.push(T('lvSrcR', hhmm(LIVE.rTs)));
   if (LIVE.hTs) src.push(T('lvSrcH', hhmm(LIVE.hTs)));
   if (src.length) html += `<div class="lvsmall">${esc(T('lvSrc', src.join(S.lang === 'zh' ? '、' : ', ')))}${LIVE.res ? ' ' + esc(T('lvCov', Math.round(LIVE.res.covFrac * 100))) : ''}</div>`;
+  if (LIVE.notes && LIVE.notes.length && st !== 'nodata') html += `<div class="lvsmall"><b>${esc(LIVE.notes.join(' '))}</b></div>`;
   html += `<div class="lvsmall">${esc(T('lvNote'))}</div>`;
   body.innerHTML = html;
 }
@@ -1916,17 +1938,20 @@ document.addEventListener('click', ev => {
   else if (b.dataset.strength != null) { S.strength = +b.dataset.strength; lsSet(LSK.strength, S.strength); applyStrength(); renderMapControls(); }
   else if (b.dataset.fs) setFullscreen(true);
   else if (b.id === 'fsExit') setFullscreen(false);
-  else if (b.dataset.pos != null) { S.hourPos = +b.dataset.pos; renderMapAll(); $('map').scrollIntoView({ behavior: 'smooth' }); }
+  else if (b.dataset.pos != null) { S.hourPos = +b.dataset.pos; ensureForecastLayer(); renderMapAll(); $('map').scrollIntoView({ behavior: 'smooth' }); }
   else if (b.dataset.go) { $(b.dataset.go).scrollIntoView({ behavior: 'smooth' }); }
   else if (b.dataset.lang) { setLang(b.dataset.lang); $('langOvl').hidden = true; }
 });
 $('btnReload').onclick = () => refresh(true);
 $('btnLang').onclick = () => { showLangPicker(); };
 $('btnSize').onclick = () => { S.size = (S.size + 1) % SIZES.length; lsSet(LSK.size, S.size); renderStatic(); if (MAP.m) MAP.m.invalidateSize(); };
+function ensureForecastLayer() {
+  if (FCST_LAYERS.some(k => S.layers[k])) return;
+  S.layers.w850 = true; S.layers.rain = true; lsSet(LSK.layers, S.layers); S.autoOn = true; renderMapControls();
+}
 $('slider').addEventListener('input', e => {
   S.hourPos = +e.target.value; $('slTime').textContent = sliderLabel();
-  if (!FCST_LAYERS.some(k => S.layers[k])) { S.layers.w850 = true; S.layers.rain = true; lsSet(LSK.layers, S.layers); S.autoOn = true; renderMapControls(); }
-  renderModelLayers();
+  ensureForecastLayer(); renderModelLayers();
 });
 
 function showLangPicker() {
@@ -1973,17 +1998,25 @@ function boot() {
   const savedLy = lsGet(LSK.layers, {});   // only keys this version knows (an older build stored 'radar')
   for (const k of Object.keys(S.layers)) if (typeof savedLy[k] === 'boolean') S.layers[k] = savedLy[k];
   setDefaultHour();
+  for (const old of ['ssw.cache.ecmwf', 'ssw.cache.gfs']) { try { localStorage.removeItem(old); } catch (e) {} }   // pre-v16 schema
   const cached = lsGet(cacheKey(S.model), null);
   if (cached) { try { useRaw(cached); } catch (e) { S.D = null; } }
   initMap();
   renderAll();
   if (!S.lang) { S.lang = null; showLangPicker(); }
   refresh(false);
-  setInterval(() => {
-    renderFresh(); if (S.D && !S.loading && !document.hidden && Date.now() - S.D.at > AUTO_MIN * 60000) refresh(true);
-    if (!document.hidden && Date.now() - MAP.nea.loadedAt >= NEA_EVERY) syncNea(true);
-  }, 60000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && S.D && Date.now() - S.D.at > AUTO_MIN * 60000) refresh(true); });
+  let lastHour = Math.floor(nowSec() / 3600);
+  const tick = () => {
+    if (document.hidden) return;
+    renderFresh();
+    if (S.D && !S.loading && Date.now() - S.D.at > AUTO_MIN * 60000) refresh(true);
+    if (Date.now() - MAP.nea.loadedAt >= NEA_EVERY) syncNea(true);
+    if (MAP.m) { syncSat(); syncHrp(); }                   // both limit themselves to one reload per 10 min
+    const hr = Math.floor(nowSec() / 3600);
+    if (hr !== lastHour) { lastHour = hr; renderAll(); }   // "now" cell, 10:00 switch to the next night, live wording
+  };
+  setInterval(tick, 60000);
+  document.addEventListener('visibilitychange', tick);
   syncNea(); initSW(); spy();
 }
 boot();

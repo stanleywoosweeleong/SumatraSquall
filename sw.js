@@ -1,6 +1,5 @@
 /* Sumatra Squall Watch — service worker. CACHE must match VERSION in index.html. */
-const CACHE = 'ssw-20260924-15';
-const TILES = 'ssw-tiles';
+const CACHE = 'ssw-20260924-16';
 const SHELL = ['./', './index.html', './manifest.json', './icon.svg', './icon-192.png', './icon-512.png'];
 const CDN = ['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'];
 
@@ -11,14 +10,15 @@ self.addEventListener('install', e => {
   }));
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== TILES).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
 
 function networkFirst(req, ms) {
   return new Promise(resolve => {
     let done = false;
-    const fromCache = () => caches.match(req, { ignoreSearch: true }).then(r => r || caches.match('./index.html'));
+    // only a page navigation may fall back to index.html — an icon or manifest must never receive HTML
+    const fromCache = () => caches.match(req, { ignoreSearch: true }).then(r => r || (req.mode === 'navigate' ? caches.match('./index.html') : undefined));
     const t = setTimeout(() => { fromCache().then(r => { if (!done && r) { done = true; resolve(r); } }); }, ms);
     fetch(req).then(res => {
       if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
