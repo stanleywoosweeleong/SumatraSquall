@@ -1,4 +1,4 @@
-# 新加坡雷达代理设置 · NEA radar proxy setup (ssw-20260924-10)
+# 新加坡雷达代理设置 · NEA radar proxy setup (ssw-20260924-11)
 
 软件先尝试**不用密钥、直接**读取 data.gov.sg。部署后打开地图，看地图下方那一行：
 

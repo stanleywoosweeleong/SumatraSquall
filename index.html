@@ -135,6 +135,9 @@ details.fold[open]>summary::before{transform:rotate(90deg) translate(3px,3px)}
 .slwrap{display:flex;align-items:center;gap:10px}
 .slwrap input[type=range]{flex:1;height:36px;accent-color:var(--sea)}
 .sltime{min-width:8.5em;font-weight:800;font-variant-numeric:tabular-nums}
+.wread{font-weight:700;background:var(--sea-l);border-left:6px solid var(--sea);border-radius:4px;padding:8px 10px;line-height:1.5}
+.wread p{margin:0}
+.wread p+p{margin-top:4px}
 .seg .seglab{align-self:center;font-weight:700;margin-right:4px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.93rem;margin-top:6px}
 .legend .lg{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
@@ -234,6 +237,7 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
       <div class="seg" id="segStrength"></div>
       <div class="slwrap"><input type="range" id="slider" min="0" max="18" step="1" value="9" aria-label="hour"><div class="sltime" id="slTime"></div></div>
       <div class="sub" id="slNote"></div>
+      <div class="wread" id="windRead" hidden></div>
       <div class="seg" id="segPlay"></div>
     </div>
     <div id="mapwrap"><div id="mapbox"></div><div class="rail rail-l" aria-hidden="true"></div><div class="rail rail-r" aria-hidden="true"></div><div id="mapTimes"></div><button id="fsExit" hidden></button></div>
@@ -280,7 +284,7 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
    All times are Malaysia Standard Time (UTC+8, no DST): data is fetched in GMT
    as unixtime and shifted by a fixed +8 h, so the device clock never matters.
    ========================================================================== */
-const VERSION = 'ssw-20260924-10';
+const VERSION = 'ssw-20260924-11';
 const MYT = 8 * 3600;
 const LSK = { lang:'ssw.lang', size:'ssw.size', model:'ssw.model', layers:'ssw.layers2', strength:'ssw.strength', cache:'ssw.cache.' };
 const MIN_RELOAD_MIN = 30;   // no re-fetch sooner than this (Open-Meteo is a shared free service)
@@ -737,6 +741,10 @@ zh: {
   views:{pen:'半岛',east:'东马',all:'全马'},
   ly:{nea:'新加坡雷达（实时）',sat:'向日葵红外（实时）',hrp:'强雨域推定（实时）',w850:'引导风 850',w10:'地面风',rain:'模型雨量',conv:'辐合',towns:'城镇'},
   slNote:'滑杆只移动模型图层；卫星图层始终显示最新观测。',
+  wrSteer:(hh,d,k,v)=>`引导风 ${hh}（海峡平均，850–700 百帕）：来自${d}，约 ${k} km/h——${v}。`,
+  wrGood:'会把海峡上形成的风暴推向马来西亚', wrWeak:'太弱，风暴几乎推不动', wrWrong:'这个方向不会把风暴推向马来西亚',
+  wrSurf:(hh,d,k)=>`地面风 ${hh}（海峡平均）：来自${d}，约 ${k} km/h。`,
+  wrNone:hh=>`${hh} 没有模型风资料。`, wrArea:'风箭头只画在马六甲海峡一带；东马视图里看不到。',
   satPlay:'播放卫星', satStop:'停止卫星', satTime:t=>`向日葵 ${t} MYT`, satGuess:'（JMA 时间表读取失败，按估算时间显示）', satGive:'找不到可用的向日葵图像。',
   strengthLab:'图像浓淡', strengths:['淡','中','浓'], fsOn:'全屏地图', fsExit:'退出全屏', bRadar:'雷达', bSat:'卫星',
   neaPlay:'播放雷达', neaStop:'停止雷达', neaTime:t=>`新加坡雷达 ${t} MYT`, neaErr:r=>`新加坡雷达读取失败：${r}。`, neaNone:'新加坡雷达暂无最近一小时的图像。',
@@ -870,6 +878,10 @@ en: {
   views:{pen:'Peninsula',east:'East Malaysia',all:'All Malaysia'},
   ly:{nea:'Singapore radar (live)',sat:'Himawari infrared (live)',hrp:'Heavy Rain Potential (live)',w850:'Steering wind 850',w10:'Surface wind',rain:'Model rain',conv:'Convergence',towns:'Towns'},
   slNote:'The slider moves the model layers only; the satellite layers always show the latest observation.',
+  wrSteer:(hh,d,k,v)=>`Steering wind at ${hh} (Strait mean, 850–700 hPa): from the ${d}, about ${k} km/h — ${v}.`,
+  wrGood:'it will push storms that form over the Strait toward Malaysia', wrWeak:'too weak to move storms much', wrWrong:'this direction does not push storms toward Malaysia',
+  wrSurf:(hh,d,k)=>`Surface wind at ${hh} (Strait mean): from the ${d}, about ${k} km/h.`,
+  wrNone:hh=>`No model wind data for ${hh}.`, wrArea:'Wind arrows are drawn only around the Strait of Malacca; they are not in the East Malaysia view.',
   satPlay:'Play satellite', satStop:'Stop satellite', satTime:t=>`Himawari ${t} MYT`, satGuess:' (JMA time list unavailable — showing estimated times)', satGive:'No usable Himawari image found.',
   strengthLab:'Image strength', strengths:['Light','Medium','Strong'], fsOn:'Full-screen map', fsExit:'Exit full screen', bRadar:'Radar', bSat:'Satellite',
   neaPlay:'Play radar', neaStop:'Stop radar', neaTime:t=>`Singapore radar ${t} MYT`, neaErr:r=>`Singapore radar failed to load: ${r}.`, neaNone:'No Singapore radar images in the last hour.',
@@ -1003,6 +1015,10 @@ ms: {
   views:{pen:'Semenanjung',east:'Malaysia Timur',all:'Seluruh Malaysia'},
   ly:{nea:'Radar Singapura (langsung)',sat:'Inframerah Himawari (langsung)',hrp:'Anggaran Hujan Lebat (langsung)',w850:'Angin pemandu 850',w10:'Angin permukaan',rain:'Hujan model',conv:'Penumpuan',towns:'Bandar'},
   slNote:'Gelangsar hanya menggerakkan lapisan model; lapisan satelit sentiasa menunjukkan cerapan terkini.',
+  wrSteer:(hh,d,k,v)=>`Angin pemandu ${hh} (purata Selat, 850–700 hPa): dari ${d}, kira-kira ${k} km/j — ${v}.`,
+  wrGood:'ia akan menolak ribut yang terbentuk di atas Selat ke arah Malaysia', wrWeak:'terlalu lemah untuk menggerakkan ribut', wrWrong:'arah ini tidak menolak ribut ke arah Malaysia',
+  wrSurf:(hh,d,k)=>`Angin permukaan ${hh} (purata Selat): dari ${d}, kira-kira ${k} km/j.`,
+  wrNone:hh=>`Tiada data angin model untuk ${hh}.`, wrArea:'Anak panah angin hanya dilukis di sekitar Selat Melaka; ia tiada dalam paparan Malaysia Timur.',
   satPlay:'Main satelit', satStop:'Henti satelit', satTime:t=>`Himawari ${t} MYT`, satGuess:' (senarai masa JMA tidak dapat dibaca — masa anggaran dipaparkan)', satGive:'Tiada imej Himawari yang boleh digunakan.',
   strengthLab:'Kepekatan imej', strengths:['Nipis','Sederhana','Pekat'], fsOn:'Peta skrin penuh', fsExit:'Keluar skrin penuh', bRadar:'Radar', bSat:'Satelit',
   neaPlay:'Main radar', neaStop:'Henti radar', neaTime:t=>`Radar Singapura ${t} MYT`, neaErr:r=>`Radar Singapura gagal dimuat: ${r}.`, neaNone:'Tiada imej radar Singapura dalam sejam terakhir.',
@@ -1428,11 +1444,11 @@ function initMap() {
   m.attributionControl.addAttribution('<a href="https://open-meteo.com/">Open-Meteo</a>');
   m.on('click', onMapClick);
 }
-const SPD_COL = [[15,'#b8c7d1'],[30,'#5fd3e0'],[45,'#f5b83d'],[1e9,'#ff5a4f']];
+const SPD_COL = [[15,'#ffffff'],[30,'#5fe3f0'],[45,'#ffd400'],[1e9,'#ff4d4d']];
 const RAIN_COL = [[0.5,null],[2.5,'#8ec5ff'],[7,'#3d8bff'],[20,'#ffb000'],[1e9,'#ff3df0']];
 function colBy(tab, x) { for (const [lim, c] of tab) if (x < lim) return c; return tab[tab.length - 1][1]; }
 function arrowLines(lat, lon, kmh, from) {
-  const to = (from + 180) * Math.PI / 180, len = Math.min(0.42, 0.06 + kmh * 0.0075);
+  const to = (from + 180) * Math.PI / 180, len = Math.min(0.44, 0.16 + kmh * 0.006);
   const cosl = Math.cos(lat * Math.PI / 180);
   const dx = Math.sin(to) * len / cosl, dy = Math.cos(to) * len;
   const a = [lat - dy / 2, lon - dx / 2], b = [lat + dy / 2, lon + dx / 2];
@@ -1442,7 +1458,33 @@ function arrowLines(lat, lon, kmh, from) {
   return [[a, b], [h1, b, h2]];
 }
 function sliderTs() { const M0 = nightMorning(nowSec(), S.night); return M0 + (S.hourPos - 6) * 3600; }
+/** what the wind arrows say at the slider hour, in words — Strait-mean steering (same numbers the index uses) */
+function renderWindRead() {
+  const box = $('windRead'); if (!box) return;
+  if (!S.layers.w850 && !S.layers.w10) { box.hidden = true; return; }
+  box.hidden = false;
+  const D = S.D, h = D ? D.idx.get(sliderTs()) : null, hh = hhmm(sliderTs());
+  if (h == null) { box.innerHTML = `<p>${esc(T('wrNone', hh))}</p>`; return; }
+  const out = [];
+  if (S.layers.w850) {
+    const st = steerOver(D.grid, [h]);
+    if (!st) out.push(T('wrNone', hh));
+    else {
+      const k = Math.round(st.spd * 3.6);
+      const verdict = st.spd < THR.steerSpdZero ? T('wrWeak') : dirFactor(st.from) > 0 ? T('wrGood') : T('wrWrong');
+      out.push(T('wrSteer', hh, dirName(st.from), k, verdict));
+    }
+  }
+  if (S.layers.w10) {
+    let su = 0, sv = 0, n = 0;
+    for (const k of STRAIT) { const sp = D.grid.ws10[k][h], dd = D.grid.wd10[k][h]; if (sp == null || dd == null) continue; const [u, v] = uvFrom(sp, dd); su += u; sv += v; n++; }
+    if (n) { const f = fromUV(su / n, sv / n); out.push(T('wrSurf', hh, dirName(f.from), Math.round(f.spd))); }
+  }
+  if (curView === 'east') out.push(T('wrArea'));
+  box.innerHTML = out.map(t => `<p>${esc(t)}</p>`).join('');
+}
 function renderModelLayers() {
+  renderWindRead();
   if (!MAP.m) return;
   for (const g of ['w850', 'w10', 'rain', 'conv']) MAP.groups[g].clearLayers();
   const D = S.D; if (!D) return;
@@ -1460,11 +1502,13 @@ function renderModelLayers() {
     for (const p of GPTS) {
       const s = G[sk][p.k][h], d = G[dk][p.k][h]; if (s == null || d == null) continue;
       const col = colBy(SPD_COL, s);
-      for (const ln of arrowLines(p.lat, p.lon, s, d)) L.polyline(ln, { renderer: MAP.cv, color: col, weight: wgt, interactive: false }).addTo(MAP.groups[grp]);
+      const lines = arrowLines(p.lat, p.lon, s, d);
+      for (const ln of lines) L.polyline(ln, { renderer: MAP.cv, color: '#0f1f2a', weight: wgt + 3, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(MAP.groups[grp]);
+      for (const ln of lines) L.polyline(ln, { renderer: MAP.cv, color: col, weight: wgt, lineCap: 'round', interactive: false }).addTo(MAP.groups[grp]);
     }
   };
-  if (S.layers.w850) drawWind('w850', 'ws850', 'wd850', 2.4);
-  if (S.layers.w10) drawWind('w10', 'ws10', 'wd10', 1.8);
+  if (S.layers.w850) drawWind('w850', 'ws850', 'wd850', 2.8);
+  if (S.layers.w10) drawWind('w10', 'ws10', 'wd10', 2.2);
 }
 function renderTownMarkers() {
   if (!MAP.m) return; MAP.groups.towns.clearLayers();
@@ -1874,7 +1918,7 @@ document.addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.night != null) { S.night = +b.dataset.night; setDefaultHour(); renderAll(); }
   else if (b.dataset.model) { if (S.model !== b.dataset.model) { S.model = b.dataset.model; lsSet(LSK.model, S.model); S.D = null; S.err = null; S.townErr = null; S.fallbackNote = null; renderAll(); refresh(false); } }
-  else if (b.dataset.view) { curView = b.dataset.view; if (MAP.m) MAP.m.fitBounds(VIEWS[curView]); renderMapControls(); }
+  else if (b.dataset.view) { curView = b.dataset.view; if (MAP.m) MAP.m.fitBounds(VIEWS[curView]); renderMapControls(); renderWindRead(); }
   else if (b.dataset.layer) { const k = b.dataset.layer; S.layers[k] = !S.layers[k]; lsSet(LSK.layers, S.layers); renderMapAll(); }
   else if (b.dataset.satplay) toggleSatPlay();
   else if (b.dataset.neaplay) toggleNeaPlay();
