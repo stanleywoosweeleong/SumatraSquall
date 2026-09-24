@@ -18,8 +18,8 @@
 }
 *{box-sizing:border-box}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-html{font-size:var(--fs);scroll-padding-top:calc(64px + env(safe-area-inset-top,0px))}
-body{margin:0;background:var(--bg);color:var(--ink);
+html{overflow-x:clip;font-size:var(--fs);scroll-padding-top:calc(64px + env(safe-area-inset-top,0px))}
+body{overflow-x:clip;margin:0;background:var(--bg);color:var(--ink);
   font:500 1rem/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",Roboto,sans-serif;
   padding-bottom:calc(78px + env(safe-area-inset-bottom,0px));-webkit-text-size-adjust:100%}
 button{font:inherit;color:inherit;cursor:pointer}
@@ -84,7 +84,7 @@ ul.adv li::before{content:"";position:absolute;left:8px;top:.62em;width:9px;heig
 .lvsmall{font-size:.94rem;color:var(--ink2);margin-top:6px}
 
 /* strip — the Strait, hour by hour */
-.strip{display:grid;grid-template-columns:repeat(19,1fr);gap:2px;margin:10px 0 4px}
+.strip{display:grid;grid-template-columns:repeat(19,minmax(0,1fr));gap:2px;margin:10px 0 4px}
 .scell{border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;min-width:0}
 .scell .bar{width:100%;height:46px;border-radius:2px;background:#e3eaee;border:1px solid #c2d0d9}
 .scell.now .bar{box-shadow:inset 0 0 0 3px var(--ink),inset 0 0 0 5px #fff}
@@ -128,14 +128,18 @@ details.fold[open]>summary::before{transform:rotate(90deg) translate(3px,3px)}
 }
 #mapTimes{position:absolute;top:10px;right:10px;z-index:900;background:#0f1f2ae6;color:#fff;border-radius:5px;padding:6px 10px;font-weight:700;font-size:.95rem;line-height:1.4;max-width:62%;pointer-events:none;font-variant-numeric:tabular-nums}
 #mapTimes:empty{display:none}
-#fsExit{position:absolute;right:10px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:900;min-height:48px;padding:0 16px;border:2px solid #fff;background:#0f1f2a;color:#fff;border-radius:5px;font-weight:800}
+#fsExit{position:absolute;right:10px;top:calc(env(safe-area-inset-top,0px) + 10px);z-index:900;min-height:48px;padding:0 16px;border:2px solid #fff;background:#0f1f2a;color:#fff;border-radius:5px;font-weight:800}
 #mapwrap.fs{position:fixed;inset:0;z-index:3000;background:#1b2a33;padding:env(safe-area-inset-top,0px) 0 0}
 #mapwrap.fs #mapbox{height:100%;min-height:0;border:0;border-radius:0}
+#mapwrap.fs{overscroll-behavior:none;touch-action:none}
+#mapwrap.fs #mapTimes{top:calc(env(safe-area-inset-top,0px) + 72px)}
+#mapwrap.fs .leaflet-bottom{padding-bottom:env(safe-area-inset-bottom,0px)}
+.leaflet-control-attribution{line-height:1.35}
 .sat-pane-img img{filter:contrast(1.35) brightness(1.05)}
 .maperr{padding:40px 16px;text-align:center;font-weight:700}
 .ctl{display:grid;gap:10px;margin:10px 0}
-.slwrap{display:flex;align-items:center;gap:10px}
-.slwrap input[type=range]{flex:1;height:36px;accent-color:var(--sea)}
+.slwrap{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.slwrap input[type=range]{flex:1 1 180px;min-width:0;height:36px;accent-color:var(--sea)}
 .sltime{min-width:9.5em;font-weight:800;font-variant-numeric:tabular-nums}
 .grp{border:1px solid var(--line);border-radius:5px;padding:8px 10px 10px;display:grid;gap:8px;background:#f7fafb}
 .grplab{font-weight:800}
@@ -165,7 +169,7 @@ details.fold[open]>summary::before{transform:rotate(90deg) translate(3px,3px)}
 .tag{display:inline-block;padding:1px 8px;border-radius:3px;font-weight:700;font-size:.9rem;border:2px solid}
 .tag.sig{background:var(--strong);border-color:var(--strong);color:#fff}
 .tag.q{background:#fff;border-color:#8aa0ae;color:var(--ink2)}
-.tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:2px 12px;margin-top:3px;font-variant-numeric:tabular-nums}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:2px 12px;margin-top:3px;font-variant-numeric:tabular-nums}
 .tgrid span{color:var(--ink2)}
 .tgrid b{font-weight:700;color:var(--ink)}
 .gcount{font-weight:700;margin:4px 0 2px}
@@ -173,8 +177,8 @@ details.fold[open]>summary::before{transform:rotate(90deg) translate(3px,3px)}
 
 /* guide */
 .diag{width:100%;height:auto;display:block;margin:8px 0;border:1px solid var(--line);border-radius:4px;background:#f3f8fa}
-.cal{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin:8px 0}
-.cal div{text-align:center;padding:10px 0 4px;border-radius:2px;font-size:.85rem;font-weight:700}
+.cal{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:3px;margin:8px 0}
+.cal div{overflow-wrap:anywhere;line-height:1.2;text-align:center;padding:10px 0 4px;border-radius:2px;font-size:.85rem;font-weight:700}
 ol.steps{padding-left:1.4em;margin:6px 0} ol.steps li{margin:4px 0}
 table.thr{width:100%;border-collapse:collapse;font-size:.95rem}
 table.thr td,table.thr th{border-top:1px solid #d6e0e6;padding:6px 4px;text-align:left;vertical-align:top}
@@ -312,7 +316,7 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
    All times are Malaysia Standard Time (UTC+8, no DST): data is fetched in GMT
    as unixtime and shifted by a fixed +8 h, so the device clock never matters.
    ========================================================================== */
-const VERSION = 'ssw-20260924-17';
+const VERSION = 'ssw-20260924-18';
 const MYT = 8 * 3600;
 const APP_URL = 'https://stanleywoosweeleong.github.io/SumatraSquall/';   // what the QR code and the WhatsApp message point to
 const LSK = { lang:'ssw.lang', size:'ssw.size', model:'ssw.model', layers:'ssw.layers2', strength:'ssw.strength', cache:'ssw.cache3.' };
@@ -1472,7 +1476,10 @@ function applyStrength() {
 }
 function setFullscreen(on) {
   const w = $('mapwrap'); w.classList.toggle('fs', on); $('fsExit').hidden = !on; $('fsExit').textContent = T('fsExit');
+  document.documentElement.style.overflow = on ? 'hidden' : '';
   document.body.style.overflow = on ? 'hidden' : '';
+  if (on) { S.fsY = window.scrollY; document.body.style.position = 'fixed'; document.body.style.top = -S.fsY + 'px'; document.body.style.width = '100%'; }
+  else { document.body.style.position = ''; document.body.style.top = ''; document.body.style.width = ''; if (S.fsY != null) window.scrollTo(0, S.fsY); }
   if (MAP.m) setTimeout(() => MAP.m.invalidateSize(), 60);
 }
 const VIEWS = { pen: [[0.8, 97.8], [6.7, 104.4]], east: [[0.8, 109.5], [7.3, 119.3]], all: [[0.8, 98.5], [7.3, 119.3]] };
