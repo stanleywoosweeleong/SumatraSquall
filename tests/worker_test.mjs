@@ -1,0 +1,17 @@
+import w from '../nea-proxy-worker.js';
+let pass=0, fail=0; const ok=(c,m)=>{c?pass++:(fail++,console.log('FAIL',m));};
+globalThis.fetch = async (u, o) => new Response(JSON.stringify({code:0,u,key:o.headers['x-api-key']}), {status:200});
+const env={DATA_GOV_SG_API_KEY:'SECRET'};
+const req=(path,origin,m='GET')=>new Request('https://p.test'+path,{method:m,headers:origin?{Origin:origin}:{}});
+let r=await w.fetch(req('/weather-radar-images/480km?date=2026-09-24','https://stanleywoosweeleong.github.io'),env);
+ok(r.status===200 && r.headers.get('access-control-allow-origin')==='https://stanleywoosweeleong.github.io','allowed origin');
+const j=await r.json(); ok(j.u==='https://api-open.data.gov.sg/v2/real-time/api/weather-radar-images/480km?date=2026-09-24' && j.key==='SECRET','upstream url + key');
+ok((await w.fetch(req('/weather?api=lightning&date=x','null'),env)).status===404,'lightning no longer passed through');
+ok((await w.fetch(req('/weather-radar-images/240km','null'),env)).status===200,'file:// radar ok');
+ok((await w.fetch(req('/weather?api=rainfall','null'),env)).status===404,'other weather api blocked');
+ok((await w.fetch(req('/air-temperature','null'),env)).status===404,'other path blocked');
+ok((await w.fetch(req('/weather-radar-images/480km','https://evil.example'),env)).status===403,'foreign origin blocked');
+ok((await w.fetch(req('/weather-radar-images/480km',''),env)).status===403,'no origin blocked');
+ok((await w.fetch(req('/weather-radar-images/480km','null','OPTIONS'),env)).status===204,'preflight');
+ok((await w.fetch(req('/weather-radar-images/480km','null'),{})).status===500,'missing secret is loud');
+console.log(pass,'passed',fail,'failed'); process.exit(fail?1:0);

@@ -1,0 +1,9 @@
+{
+  "name": "sumatra-squall-watch-tests",
+  "private": true,
+  "description": "Offline test suite for Sumatra Squall Watch (no network needed: every feed is stubbed)",
+  "scripts": {
+    "test": "node extract.js && node smoke.js && node detector_test.js && node findings_test.js && node review_test.js && node share_test.js && node worker_test.mjs"
+  },
+  "devDependencies": { "jsdom": "^24.0.0" }
+}
