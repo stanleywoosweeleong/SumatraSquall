@@ -1,0 +1,1427 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b4f5c">
+<title>苏门答腊飑线 Sumatra Squall</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --bg:#e7eef2; --panel:#ffffff; --ink:#0f1f2a; --ink2:#1f3646; --line:#aebfcb;
+  --sea:#0b6674; --sea-d:#07434d; --sea-l:#d6eaee;
+  --low:#2e7d4f; --watch:#9a5b00; --likely:#c2410c; --strong:#b42318;
+  --fs:17px;
+}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{font-size:var(--fs);scroll-padding-top:calc(64px + env(safe-area-inset-top,0px))}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:500 1rem/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",Roboto,sans-serif;
+  padding-bottom:calc(78px + env(safe-area-inset-bottom,0px));-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;cursor:pointer}
+[hidden]{display:none!important}
+a{color:var(--sea-d);font-weight:600}
+
+/* header */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:1000;background:var(--sea-d);color:#fff;
+  display:flex;align-items:center;gap:8px;padding:10px 12px}
+header.top h1{flex:1;min-width:0;margin:0;font-size:1.18rem;font-weight:700;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hbtn{flex:none;min-width:48px;height:42px;border:2px solid #ffffffb0;background:transparent;color:#fff;border-radius:4px;font-weight:700;padding:0 10px}
+.hbtn:focus-visible,.seg button:focus-visible,.navb:focus-visible{outline:3px solid #f5b83d;outline-offset:2px}
+
+main{max-width:880px;margin:0 auto;padding:12px}
+section.blk{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;margin:0 0 14px}
+h2{font-size:1.2rem;margin:0 0 8px;line-height:1.3}
+h3{font-size:1.05rem;margin:14px 0 6px}
+p{margin:.4em 0}
+.sub{color:var(--ink2)}
+
+/* banners */
+.banner{border-radius:5px;padding:10px 12px;margin:0 0 12px;border:2px solid;font-weight:600}
+.banner.red{background:#fdecea;border-color:var(--strong);color:#6e130d}
+.banner.amber{background:#fff4e0;border-color:var(--watch);color:#5a3500}
+.fresh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:12px}
+.fresh .ftxt{flex:1;min-width:220px}
+.rbtn{min-height:44px;border:2px solid var(--sea);background:#fff;color:var(--sea-d);border-radius:4px;padding:0 14px;font-weight:700}
+.rbtn[disabled]{border-color:var(--line);color:#4a5d6a;cursor:default}
+
+/* settings */
+.settings{display:grid;gap:10px}
+.setrow .lab{font-weight:700;margin-bottom:4px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{min-height:46px;border:2px solid var(--sea);background:#fff;color:var(--sea-d);border-radius:4px;padding:4px 12px;font-weight:700;text-align:left;line-height:1.25}
+.seg button small{display:block;font-size:.88rem;font-weight:600;color:inherit}
+.seg button[aria-pressed="true"]{background:var(--sea);color:#fff}
+
+/* verdict */
+#verdict{border-left:12px solid var(--line)}
+#verdict.low{border-left-color:var(--low)} #verdict.watch{border-left-color:var(--watch)}
+#verdict.likely{border-left-color:var(--likely)} #verdict.strong{border-left-color:var(--strong)}
+.vtop{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.vlevel{font-size:1.75rem;font-weight:800;line-height:1.15}
+.vscore{font-size:1.2rem;font-weight:700;font-variant-numeric:tabular-nums}
+.low .vlevel{color:var(--low)} .watch .vlevel{color:var(--watch)} .likely .vlevel{color:var(--likely)} .strong .vlevel{color:var(--strong)}
+.vnight{font-weight:700;color:var(--ink2);margin-bottom:2px}
+.vreason{font-size:1.06rem;margin:8px 0}
+.vearly{font-weight:700;background:var(--sea-l);border-radius:4px;padding:8px 10px;margin:8px 0}
+.disc{font-size:.94rem;color:var(--ink2);border-top:1px solid var(--line);padding-top:8px;margin-top:10px}
+ul.adv{margin:6px 0 0;padding:0;list-style:none}
+ul.adv li{position:relative;padding:6px 0 6px 30px;border-bottom:1px solid #dfe7ec}
+ul.adv li:last-child{border-bottom:0}
+ul.adv li::before{content:"";position:absolute;left:4px;top:.72em;width:14px;height:14px;border:2.5px solid var(--sea);border-radius:2px}
+
+/* strip — the Strait, hour by hour */
+.strip{display:grid;grid-template-columns:repeat(19,1fr);gap:2px;margin:10px 0 4px}
+.scell{border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;min-width:0}
+.scell .bar{width:100%;height:46px;border-radius:2px;background:#e3eaee;border:1px solid #c2d0d9}
+.scell.now .bar{outline:3px solid var(--ink);outline-offset:1px}
+.scell.gust .bar{box-shadow:inset 0 -7px 0 var(--strong)}
+.scell svg{width:100%;max-width:22px;height:22px;margin-top:3px}
+.scell .hh{font-size:.82rem;font-weight:800;height:1.25em;white-space:nowrap;overflow:visible;font-variant-numeric:tabular-nums}
+.stripkey{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.92rem;align-items:center;margin-top:6px}
+.sw{display:inline-block;width:18px;height:14px;border:1px solid #9fb2bf;vertical-align:-2px;margin-right:4px;border-radius:2px}
+
+/* ingredients */
+details.fold{border:1px solid var(--line);border-radius:5px;padding:0 12px;margin:10px 0 0;background:#f7fafb}
+details.fold>summary{min-height:46px;display:flex;align-items:center;font-weight:700;cursor:pointer;list-style:none}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::before{content:"";width:0;height:0;border:7px solid transparent;border-left:10px solid var(--sea);margin-right:10px;transition:transform .15s}
+details.fold[open]>summary::before{transform:rotate(90deg) translate(3px,3px)}
+.ing{display:grid;gap:8px;padding-bottom:12px}
+.irow{border-top:1px solid #d6e0e6;padding-top:8px}
+.irow .ih{display:flex;justify-content:space-between;gap:10px;font-weight:700}
+.irow .ipts{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ibar{height:10px;background:#dde6eb;border-radius:2px;margin:5px 0;overflow:hidden}
+.ibar i{display:block;height:100%;background:var(--sea)}
+.irow .iraw{font-variant-numeric:tabular-nums}
+.irow .ithr{font-size:.92rem;color:var(--ink2)}
+.itot{font-weight:800;border-top:2px solid var(--ink);padding-top:8px;display:flex;justify-content:space-between}
+
+/* map */
+#mapwrap{position:relative}
+#mapbox{height:min(68vh,560px);min-height:360px;border:1px solid var(--line);border-radius:5px;background:#cfdde4}
+.maperr{padding:40px 16px;text-align:center;font-weight:700}
+.ctl{display:grid;gap:10px;margin:10px 0}
+.slwrap{display:flex;align-items:center;gap:10px}
+.slwrap input[type=range]{flex:1;height:36px;accent-color:var(--sea)}
+.sltime{min-width:8.5em;font-weight:800;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.93rem;margin-top:6px}
+.legend .lg{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.lsrc{font-size:.93rem;color:var(--ink2)}
+.eta{margin-top:10px;border:2px solid var(--strong);border-radius:5px;padding:10px 12px;background:#fff7f5}
+.eta table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.eta td{padding:5px 4px;border-top:1px solid #efd4cf;vertical-align:top}
+.eta td:last-child{text-align:right;font-weight:700}
+.markhint{font-weight:800;color:var(--strong)}
+.leaflet-container{font:inherit}
+.leaflet-popup-content{font-size:1rem;line-height:1.45;margin:10px 12px}
+.leaflet-control-attribution{font-size:11px}
+
+/* towns */
+.tgroup h3{border-bottom:2px solid var(--ink);padding-bottom:3px}
+.town{border-bottom:1px solid #d6e0e6;padding:8px 0}
+.town .tn{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.town .tn b{font-size:1.06rem}
+.tag{display:inline-block;padding:1px 8px;border-radius:3px;font-weight:700;font-size:.9rem;border:2px solid}
+.tag.sig{background:var(--strong);border-color:var(--strong);color:#fff}
+.tag.q{background:#fff;border-color:#8aa0ae;color:var(--ink2)}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:2px 12px;margin-top:3px;font-variant-numeric:tabular-nums}
+.tgrid span{color:var(--ink2)}
+.tgrid b{font-weight:700;color:var(--ink)}
+.enote{background:var(--sea-l);border-radius:4px;padding:8px 10px;margin:6px 0}
+
+/* guide */
+.diag{width:100%;height:auto;display:block;margin:8px 0;border:1px solid var(--line);border-radius:4px;background:#f3f8fa}
+.cal{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin:8px 0}
+.cal div{text-align:center;padding:10px 0 4px;border-radius:2px;font-size:.85rem;font-weight:700}
+ol.steps{padding-left:1.4em;margin:6px 0} ol.steps li{margin:4px 0}
+table.thr{width:100%;border-collapse:collapse;font-size:.95rem}
+table.thr td,table.thr th{border-top:1px solid #d6e0e6;padding:6px 4px;text-align:left;vertical-align:top}
+footer.foot{font-size:.92rem;color:var(--ink2);padding:6px 2px 20px}
+
+/* bottom nav */
+nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;border-top:2px solid var(--sea-d);
+  display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom,0px)}
+.navb{border:0;background:none;padding:6px 2px 7px;display:flex;flex-direction:column;align-items:center;gap:1px;font-weight:700;font-size:.92rem;color:var(--sea-d)}
+.navb svg{width:26px;height:26px}
+.navb.on{background:var(--sea-l)}
+
+/* overlays */
+.ovl{position:fixed;inset:0;z-index:2000;background:#0a2a33e6;display:flex;align-items:center;justify-content:center;padding:20px}
+.ovl .card{background:#fff;border-radius:8px;padding:22px;max-width:420px;width:100%}
+.ovl .card h2{font-size:1.3rem}
+.ovl .lbtn{display:block;width:100%;min-height:58px;margin:10px 0;border:2px solid var(--sea);background:#fff;color:var(--sea-d);border-radius:5px;font-size:1.2rem;font-weight:800}
+.ovl .lbtn[aria-pressed="true"]{background:var(--sea);color:#fff}
+.toast{position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:1500;background:var(--ink);color:#fff;border:0;border-radius:6px;padding:14px;font-weight:700;text-align:left}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1 id="appTitle">苏门答腊飑线</h1>
+  <button class="hbtn" id="btnSize" aria-label="Aa">Aa</button>
+  <button class="hbtn" id="btnLang">中文</button>
+</header>
+
+<main>
+  <div id="banner"></div>
+  <div class="fresh"><div class="ftxt" id="fresh"></div><button class="rbtn" id="btnReload"></button></div>
+
+  <section class="blk" id="settings">
+    <h2 id="setTitle"></h2>
+    <div class="settings">
+      <div class="setrow"><div class="lab" id="setNight"></div><div class="seg" id="segNight"></div></div>
+      <div class="setrow"><div class="lab" id="setModel"></div><div class="seg" id="segModel"></div></div>
+    </div>
+  </section>
+
+  <section class="blk" id="verdict">
+    <div class="vnight" id="vNight"></div>
+    <div class="vtop"><div class="vlevel" id="vLevel">…</div><div class="vscore" id="vScore"></div></div>
+    <p class="vreason" id="vReason"></p>
+    <div class="vearly" id="vEarly" hidden></div>
+    <h3 id="advHead"></h3>
+    <ul class="adv" id="adv"></ul>
+    <h3 id="stripHead"></h3>
+    <p class="sub" id="stripSub"></p>
+    <div class="strip" id="strip"></div>
+    <div class="stripkey" id="stripKey"></div>
+    <details class="fold" id="ingFold"><summary id="ingHead"></summary><div class="ing" id="ing"></div></details>
+    <p class="disc" id="disc"></p>
+  </section>
+
+  <section class="blk" id="map">
+    <h2 id="mapHead"></h2>
+    <p class="sub" id="mapSub"></p>
+    <div class="ctl">
+      <div class="seg" id="segView"></div>
+      <div class="seg" id="segLayers"></div>
+      <div class="slwrap"><input type="range" id="slider" min="0" max="18" step="1" value="9" aria-label="hour"><div class="sltime" id="slTime"></div></div>
+      <div class="sub" id="slNote"></div>
+      <div class="seg" id="segRadar"></div>
+    </div>
+    <div id="mapwrap"><div id="mapbox"></div></div>
+    <div class="legend" id="legend"></div>
+    <div class="lsrc" id="liveSrc"></div>
+    <div class="ctl"><div class="seg" id="segMark"></div><div class="markhint" id="markHint" hidden></div></div>
+    <div class="eta" id="eta" hidden></div>
+  </section>
+
+  <section class="blk" id="towns">
+    <h2 id="townsHead"></h2>
+    <p class="sub" id="townsSub"></p>
+    <div id="townList"></div>
+  </section>
+
+  <section class="blk" id="guide">
+    <h2 id="guideHead"></h2>
+    <div id="guideBody"></div>
+  </section>
+  <footer class="foot" id="foot"></footer>
+</main>
+
+<nav class="bot" id="nav">
+  <button class="navb" data-go="verdict"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17a9 9 0 0 1 18 0"/><path d="M12 17l5-6"/><circle cx="12" cy="17" r="1.6" fill="currentColor"/></svg><span id="navVerdict"></span></button>
+  <button class="navb" data-go="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg><span id="navMap"></span></button>
+  <button class="navb" data-go="towns"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span id="navTowns"></span></button>
+  <button class="navb" data-go="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M8 7h7M8 11h7"/></svg><span id="navGuide"></span></button>
+</nav>
+
+<div class="ovl" id="langOvl" hidden><div class="card">
+  <h2 id="pickLang">请选择语言 · Choose language · Pilih bahasa</h2>
+  <p class="sub" id="pickLangSub"></p>
+  <button class="lbtn" data-lang="zh">中文</button>
+  <button class="lbtn" data-lang="en">English</button>
+  <button class="lbtn" data-lang="ms">Malay</button>
+</div></div>
+<button class="toast" id="toast" hidden></button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+'use strict';
+/* ==========================================================================
+   Sumatra Squall Watch — single-file PWA
+   All times are Malaysia Standard Time (UTC+8, no DST): data is fetched in GMT
+   as unixtime and shifted by a fixed +8 h, so the device clock never matters.
+   ========================================================================== */
+const VERSION = 'ssw-20260924-01';
+const MYT = 8 * 3600;
+const LSK = { lang:'ssw.lang', size:'ssw.size', model:'ssw.model', layers:'ssw.layers', cache:'ssw.cache.' };
+const MIN_RELOAD_MIN = 30;   // no re-fetch sooner than this (Open-Meteo is a shared free service)
+const AUTO_MIN = 60;         // auto re-fetch when the page is open and data is older than this
+const STALE_H = 6;           // red banner beyond this
+
+/* ---------- geometry of the Strait ---------- */
+/*ENGINE-START*/
+// Hand-placed mid-line of the Strait of Malacca, NW entrance → Singapore Strait.
+const AXIS = [[5.4,98.8],[4.6,99.35],[4.0,99.65],[3.0,100.65],[2.2,101.45],[1.7,102.5],[1.15,103.45]];
+const BAND_KM = 70;          // grid points within this distance of the mid-line count as "the Strait"
+const LAT0 = 3, KX = 111.32 * Math.cos(LAT0 * Math.PI / 180), KY = 110.57;
+const GRID = (() => {
+  const lats = [], lons = [];
+  for (let a = 0.5; a <= 6.0001; a += 0.5) lats.push(+a.toFixed(2));
+  for (let o = 97.5; o <= 104.0001; o += 0.5) lons.push(+o.toFixed(2));
+  return { lats, lons, ny: lats.length, nx: lons.length, step: 0.5 };
+})();
+const GPTS = [];  // {k,i,j,lat,lon}
+for (let i = 0; i < GRID.ny; i++) for (let j = 0; j < GRID.nx; j++) GPTS.push({ k: i * GRID.nx + j, i, j, lat: GRID.lats[i], lon: GRID.lons[j] });
+
+const TOWNS = [
+  // west coast of the Peninsula
+  { id:'alor', g:'west', lat:6.12, lon:100.37, zh:'亚罗士打', en:'Alor Setar', ms:'Alor Setar' },
+  { id:'penang', g:'west', lat:5.41, lon:100.33, zh:'槟城', en:'George Town', ms:'George Town' },
+  { id:'ipoh', g:'west', lat:4.60, lon:101.08, zh:'怡保', en:'Ipoh', ms:'Ipoh' },
+  { id:'lumut', g:'west', lat:4.23, lon:100.63, zh:'红土坎', en:'Lumut', ms:'Lumut' },
+  { id:'tintan', g:'west', lat:4.02, lon:101.02, zh:'安顺', en:'Teluk Intan', ms:'Teluk Intan' },
+  { id:'klang', g:'west', lat:3.04, lon:101.45, zh:'巴生', en:'Klang', ms:'Klang' },
+  { id:'kl', g:'west', lat:3.14, lon:101.69, zh:'吉隆坡', en:'Kuala Lumpur', ms:'Kuala Lumpur' },
+  { id:'seremban', g:'west', lat:2.73, lon:101.94, zh:'芙蓉', en:'Seremban', ms:'Seremban' },
+  { id:'pd', g:'west', lat:2.52, lon:101.80, zh:'波德申', en:'Port Dickson', ms:'Port Dickson' },
+  { id:'melaka', g:'west', lat:2.19, lon:102.25, zh:'马六甲', en:'Melaka', ms:'Melaka' },
+  { id:'muar', g:'west', lat:2.04, lon:102.57, zh:'麻坡', en:'Muar', ms:'Muar' },
+  { id:'bpahat', g:'west', lat:1.85, lon:102.93, zh:'峇株巴辖', en:'Batu Pahat', ms:'Batu Pahat' },
+  { id:'jb', g:'west', lat:1.49, lon:103.74, zh:'新山', en:'Johor Bahru', ms:'Johor Bahru' },
+  // interior and east coast of the Peninsula
+  { id:'bentong', g:'inland', lat:3.52, lon:101.91, zh:'文冬', en:'Bentong', ms:'Bentong' },
+  { id:'raub', g:'inland', lat:3.79, lon:101.86, zh:'劳勿', en:'Raub', ms:'Raub' },
+  { id:'temerloh', g:'inland', lat:3.45, lon:102.42, zh:'淡马鲁', en:'Temerloh', ms:'Temerloh' },
+  { id:'triang', g:'inland', lat:3.25, lon:102.42, zh:'直凉', en:'Triang', ms:'Triang' },
+  { id:'segamat', g:'inland', lat:2.51, lon:102.82, zh:'昔加末', en:'Segamat', ms:'Segamat' },
+  { id:'kuantan', g:'inland', lat:3.81, lon:103.33, zh:'关丹', en:'Kuantan', ms:'Kuantan' },
+  // East Malaysia
+  { id:'kuching', g:'east', lat:1.55, lon:110.34, zh:'古晋', en:'Kuching', ms:'Kuching' },
+  { id:'sibu', g:'east', lat:2.30, lon:111.82, zh:'诗巫', en:'Sibu', ms:'Sibu' },
+  { id:'bintulu', g:'east', lat:3.17, lon:113.03, zh:'民都鲁', en:'Bintulu', ms:'Bintulu' },
+  { id:'miri', g:'east', lat:4.40, lon:113.99, zh:'美里', en:'Miri', ms:'Miri' },
+  { id:'labuan', g:'east', lat:5.28, lon:115.24, zh:'纳闽', en:'Labuan', ms:'Labuan' },
+  { id:'kk', g:'east', lat:5.98, lon:116.07, zh:'亚庇', en:'Kota Kinabalu', ms:'Kota Kinabalu' },
+  { id:'sandakan', g:'east', lat:5.84, lon:118.12, zh:'山打根', en:'Sandakan', ms:'Sandakan' },
+  { id:'tawau', g:'east', lat:4.24, lon:117.89, zh:'斗湖', en:'Tawau', ms:'Tawau' },
+];
+
+// Published thresholds — every number the index uses lives here.
+const THR = {
+  steerDirFull: [200, 290], steerDirZero: [170, 320],   // wind FROM (deg)
+  steerSpdZero: 2, steerSpdFull: 10,                    // m/s
+  capeZero: 500, capeFull: 2000,                        // J/kg, 75th percentile of Strait points
+  convFull: 2.0e-5,                                     // s^-1, mean over Strait points 01–06
+  rainMM: 2, rainFracFull: 0.40,                        // share of Strait points with ≥2 mm/h 00–08
+  gustZero: 30, gustFull: 60,                           // km/h, max over west-coast towns 02–10
+  sigRain: 2, sigGust: 45,                              // town "signal": ≥2 mm/h or gust ≥45 km/h
+  gateCap: 30,                                          // cap when steering points away from Malaysia
+};
+const W8 = { steer:25, cape:15, conv:20, rain:20, gust:15, season:5 };
+const LEVELS = [[25,'low'],[45,'watch'],[65,'likely'],[101,'strong']];
+
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+function xy(lat, lon) { return [lon * KX, lat * KY]; }
+function levelOf(score) { for (const [lim, k] of LEVELS) if (score < lim) return k; return 'strong'; }
+/** wind FROM direction (deg) + speed → vector (u east, v north) */
+function uvFrom(spd, dir) { const r = dir * Math.PI / 180; return [-spd * Math.sin(r), -spd * Math.cos(r)]; }
+function fromUV(u, v) { return { spd: Math.hypot(u, v), from: (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360 }; }
+function dirFactor(from) {
+  const [f0, f1] = THR.steerDirFull, [z0, z1] = THR.steerDirZero;
+  if (from >= f0 && from <= f1) return 1;
+  if (from > z0 && from < f0) return (from - z0) / (f0 - z0);
+  if (from > f1 && from < z1) return (z1 - from) / (z1 - f1);
+  return 0;
+}
+function spdFactor(ms) { return clamp((ms - THR.steerSpdZero) / (THR.steerSpdFull - THR.steerSpdZero)); }
+function seasonFactor(month) { return (month >= 5 && month <= 9) ? 1 : (month === 4 || month >= 10) ? 0.7 : 0.3; }
+function phaseOf(month) { return (month >= 5 && month <= 9) ? 'SW' : (month === 4 || month === 10 || month === 11) ? 'INTER' : 'NE'; }
+function pct(arr, p) { if (!arr.length) return null; const s = [...arr].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(p * (s.length - 1) + 0.5))]; }
+
+/** nearest point on the Strait mid-line: distance (km), nearest point in km-xy, and whether it is past an end */
+function axisNearest(lat, lon) {
+  const P = xy(lat, lon); let best = { d: Infinity };
+  for (let s = 0; s < AXIS.length - 1; s++) {
+    const A = xy(...AXIS[s]), B = xy(...AXIS[s + 1]);
+    const ab = [B[0] - A[0], B[1] - A[1]], ap = [P[0] - A[0], P[1] - A[1]];
+    const L2 = ab[0] * ab[0] + ab[1] * ab[1];
+    const tRaw = (ap[0] * ab[0] + ap[1] * ab[1]) / L2, t = clamp(tRaw);
+    const Q = [A[0] + t * ab[0], A[1] + t * ab[1]];
+    const d = Math.hypot(P[0] - Q[0], P[1] - Q[1]);
+    if (d < best.d) best = { d, Q, P, past: (s === 0 && tRaw < 0) || (s === AXIS.length - 2 && tRaw > 1) };
+  }
+  return best;
+}
+const STRAIT = GPTS.filter(p => { const n = axisNearest(p.lat, p.lon); return n.d <= BAND_KM && !(n.past && n.d > 25); }).map(p => p.k);
+const STRAIT_INNER = STRAIT.filter(k => { const p = GPTS[k]; return p.i > 0 && p.i < GRID.ny - 1 && p.j > 0 && p.j < GRID.nx - 1; });
+
+/** hours after the Strait mid-line that a line moving with (u,v) m/s reaches a place; null = n/a */
+function lagFromAxis(lat, lon, st) {
+  if (!st || st.spd < THR.steerSpdZero) return null;
+  const n = axisNearest(lat, lon), pu = st.u / st.spd, pv = st.v / st.spd;
+  const along = (n.P[0] - n.Q[0]) * pu + (n.P[1] - n.Q[1]) * pv;   // km
+  if (along <= 0) return { upwind: true };
+  return { h: along / (st.spd * 3.6), km: along };
+}
+
+/** ETA of a marked squall line (two lat/lon ends) moving with (u,v) m/s to a place */
+function etaFromLine(a, b, lat, lon, st) {
+  const A = xy(a[0], a[1]), B = xy(b[0], b[1]), P = xy(lat, lon);
+  const d = [B[0] - A[0], B[1] - A[1]], len = Math.hypot(d[0], d[1]);
+  if (len < 1) return null;
+  let n = [-d[1] / len, d[0] / len];
+  let dist = (P[0] - A[0]) * n[0] + (P[1] - A[1]) * n[1];
+  if (dist < 0) { n = [-n[0], -n[1]]; dist = -dist; }
+  const t = ((P[0] - A[0]) * d[0] + (P[1] - A[1]) * d[1]) / (len * len);
+  const beyond = t < -0.25 || t > 1.25;
+  if (dist < 3) return { now: true, beyond };
+  if (!st) return { nosteer: true, beyond };
+  const vn = st.u * n[0] + st.v * n[1];                          // m/s toward the place
+  if (vn < 1) return { away: true, beyond, dist };
+  return { h: dist / (vn * 3.6), dist, beyond, vn };
+}
+
+/** grid convergence (−divergence, s^-1) at inner point k, hour h, from 10 m winds (km/h in data) */
+function convAt(G, k, h) {
+  const p = GPTS[k], nx = GRID.nx;
+  const w = (kk) => { const s = G.ws10[kk][h], d = G.wd10[kk][h]; return (s == null || d == null) ? null : uvFrom(s / 3.6, d); };
+  const E = w(k + 1), Wd = w(k - 1), N = w(k + nx), S = w(k - nx);
+  if (!E || !Wd || !N || !S) return null;
+  const dx = GRID.step * 111320 * Math.cos(p.lat * Math.PI / 180), dy = GRID.step * 110570;
+  const div = (E[0] - Wd[0]) / (2 * dx) + (N[1] - S[1]) / (2 * dy);
+  return -div;
+}
+
+/** mean steering (850 + 700 hPa) over the Strait points for a set of hour indices */
+function steerOver(G, hrs) {
+  let su = 0, sv = 0, n = 0;
+  for (const k of STRAIT) for (const h of hrs) for (const lv of ['850', '700']) {
+    const s = G['ws' + lv][k][h], d = G['wd' + lv][k][h];
+    if (s == null || d == null) continue;
+    const [u, v] = uvFrom(s / 3.6, d); su += u; sv += v; n++;
+  }
+  if (!n) return null;
+  const u = su / n, v = sv / n, f = fromUV(u, v);
+  return { u, v, spd: f.spd, from: f.from, n };
+}
+
+function mytParts(ts) { const d = new Date((ts + MYT) * 1000); return { y: d.getUTCFullYear(), mo: d.getUTCMonth() + 1, d: d.getUTCDate(), h: d.getUTCHours(), mi: d.getUTCMinutes() }; }
+function mytMidnight(ts) { return Math.floor((ts + MYT) / 86400) * 86400 - MYT; }
+/** 00:00 MYT of the morning that ends night #which (0 = the next/ongoing one) */
+function nightMorning(nowSec, which) {
+  const base = mytParts(nowSec).h < 10 ? mytMidnight(nowSec) : mytMidnight(nowSec) + 86400;
+  return base + which * 86400;
+}
+function hoursIdx(D, M0, a, b) { const r = []; for (let t = M0 + a * 3600; t <= M0 + b * 3600; t += 3600) { const i = D.idx.get(t); if (i != null) r.push(i); } return r; }
+
+function townSeries(D, tid) { return D.towns ? D.towns[tid] : null; }
+
+/** per-town summary for a night window 00–12 MYT */
+function townResult(D, town, M0, st) {
+  const T = townSeries(D, town.id); const out = { town, first: null, gust: null, gustH: null, rain: null, maxP: null };
+  if (T) {
+    const hrs = hoursIdx(D, M0, 0, 12); let rain = 0, got = 0;
+    for (const h of hrs) {
+      const p = T.pr[h], g = T.gu[h];
+      if (p != null) { rain += p; got++; if (out.maxP == null || p > out.maxP) out.maxP = p; }
+      if (g != null && (out.gust == null || g > out.gust)) { out.gust = g; out.gustH = D.times[h]; }
+      if (out.first == null && ((p != null && p >= THR.sigRain) || (g != null && g >= THR.sigGust))) out.first = D.times[h];
+    }
+    out.rain = got ? rain : null;
+  }
+  if (town.g !== 'east') out.lag = lagFromAxis(town.lat, town.lon, st);
+  return out;
+}
+
+/** the whole analysis for one night; D = parsed data, M0 = 00:00 MYT of the morning */
+function analyzeNight(D, M0) {
+  const G = D.grid, parts = {};
+  const W = hoursIdx(D, M0, 0, 9), Wc = hoursIdx(D, M0, -3, 6), Wk = hoursIdx(D, M0, 1, 6), Wr = hoursIdx(D, M0, 0, 8), Wg = hoursIdx(D, M0, 2, 10);
+  // 1 steering
+  const st = W.length ? steerOver(G, W) : null;
+  if (st) { const df = dirFactor(st.from), sf = spdFactor(st.spd); parts.steer = { score: df * sf, df, sf, st }; }
+  else parts.steer = { missing: true };
+  // 2 CAPE — 75th percentile over Strait points of each point's max 21–06
+  const caps = [];
+  for (const k of STRAIT) { let m = null; for (const h of Wc) { const c = G.cape[k][h]; if (c != null && (m == null || c > m)) m = c; } if (m != null) caps.push(m); }
+  if (caps.length) { const c = pct(caps, 0.75); parts.cape = { score: clamp((c - THR.capeZero) / (THR.capeFull - THR.capeZero)), c }; }
+  else parts.cape = { missing: true };
+  // 3 convergence — mean over inner Strait points 01–06
+  let cs = 0, cn = 0, cmax = null;
+  for (const h of Wk) for (const k of STRAIT_INNER) { const c = convAt(G, k, h); if (c == null) continue; cs += c; cn++; if (cmax == null || c > cmax) cmax = c; }
+  if (cn) { const mean = cs / cn; parts.conv = { score: clamp(mean / THR.convFull), mean, max: cmax }; }
+  else parts.conv = { missing: true };
+  // 4 model rain over the Strait 00–08
+  let wet = 0, tot = 0, maxP = null;
+  for (const k of STRAIT) { let m = null; for (const h of Wr) { const p = G.pr[k][h]; if (p != null && (m == null || p > m)) m = p; } if (m == null) continue; tot++; if (m >= THR.rainMM) wet++; if (maxP == null || m > maxP) maxP = m; }
+  if (tot) { const f = wet / tot; parts.rain = { score: clamp(f / THR.rainFracFull), frac: f, max: maxP }; }
+  else parts.rain = { missing: true };
+  // 5 west-coast gusts 02–10
+  let gmax = null, gt = null, gh = null;
+  if (D.towns) for (const t of TOWNS) if (t.g === 'west') { const s = D.towns[t.id]; if (!s) continue; for (const h of Wg) { const g = s.gu[h]; if (g != null && (gmax == null || g > gmax)) { gmax = g; gt = t; gh = D.times[h]; } } }
+  if (gmax != null) parts.gust = { score: clamp((gmax - THR.gustZero) / (THR.gustFull - THR.gustZero)), g: gmax, town: gt, ts: gh };
+  else parts.gust = { missing: true };
+  // 6 season
+  const mo = mytParts(M0).mo; parts.season = { score: seasonFactor(mo), mo, phase: phaseOf(mo) };
+
+  let sum = 0, wsum = 0; const missing = [];
+  for (const key of Object.keys(W8)) { const p = parts[key]; p.w = W8[key]; if (p.missing) { missing.push(key); continue; } p.pts = p.score * p.w; sum += p.pts; wsum += p.w; }
+  let score = wsum ? Math.round(sum / wsum * 100) : null;
+  let gate = false;
+  if (score != null && parts.steer.df === 0 && score > THR.gateCap) { score = THR.gateCap; gate = true; }
+  const towns = TOWNS.map(t => townResult(D, t, M0, st));
+  let earliest = null;
+  for (const r of towns) if (r.town.g === 'west' && r.first != null && (earliest == null || r.first < earliest.first)) earliest = r;
+  return { M0, score, level: score == null ? null : levelOf(score), parts, gate, missing, steer: st, towns, earliest, hours: W.length };
+}
+
+/** 19 hourly cells 18:00 → 12:00 for the strip */
+function stripData(D, M0) {
+  const G = D.grid, out = [];
+  for (let a = -6; a <= 12; a++) {
+    const t = M0 + a * 3600, h = D.idx.get(t);
+    if (h == null) { out.push({ t, missing: true }); continue; }
+    let wet = 0, tot = 0;
+    for (const k of STRAIT) { const p = G.pr[k][h]; if (p == null) continue; tot++; if (p >= THR.rainMM) wet++; }
+    let gmax = null;
+    if (D.towns) for (const tw of TOWNS) if (tw.g === 'west') { const g = D.towns[tw.id] && D.towns[tw.id].gu[h]; if (g != null && (gmax == null || g > gmax)) gmax = g; }
+    out.push({ t, h, frac: tot ? wet / tot : null, st: steerOver(G, [h]), gust: gmax });
+  }
+  return out;
+}
+/*ENGINE-END*/
+
+/* ---------- i18n ---------- */
+const MON_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MON_MS = ['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogo','Sep','Okt','Nov','Dis'];
+const MON_ZH = m => m + '月';
+const I18N = {
+zh: {
+  langShort:'中文', appTitle:'苏门答腊飑线', pickLangSub:'之后可随时点右上角的语言按钮更改。',
+  navVerdict:'今晚', navMap:'地图', navTowns:'城镇', navGuide:'说明',
+  setTitle:'设置', setNight:'看哪一夜', setModel:'天气模型',
+  modelEcSub:'欧洲中心', modelGfsSub:'美国 NOAA',
+  nightRel:['昨夜→今早','今晚→明早','明晚→后天早上'],
+  nightDate:(e,m)=> e.mo===m.mo ? `${e.mo}月${e.d}日夜→${m.d}日早` : `${e.mo}月${e.d}日夜→${m.mo}月${m.d}日早`,
+  fresh:(model,time,ago)=>`模型 ${model}，读取于 ${time}（MYT，${ago}）`,
+  agoMin:n=>`${n} 分钟前`, agoH:n=>`${n} 小时前`,
+  reload:'重新读取', reloadNext:t=>`下次可读取 ${t}`, loading:'读取中…',
+  errNoData:r=>`无法读取模型数据：${r}。请检查网络后点「重新读取」。`,
+  errCache:(r,t)=>`这次读取失败（${r}），下面显示的是 ${t} 的旧数据。`,
+  stale:h=>`数据已是 ${h} 小时前的，结论可能已过时。请重新读取。`,
+  modelFallback:(a,b)=>`${a} 未能返回，已改用 ${b}。`,
+  townErr:r=>`城镇数据读取失败（${r}）：城镇列表和「西海岸阵风」暂无数据，其余照常。`,
+  levels:{low:'配置不利',watch:'留意',likely:'配置有利',strong:'配置很有利'},
+  scoreOf:s=>`指数 ${s} / 100`,
+  gateNote:'引导风不是把风暴推向马来西亚的方向，所以指数最高只计 30。',
+  missingNote:l=>`以下成分缺数据，已从计算中剔除：${l}。`,
+  rSteerGood:(dir,k)=>`海峡上空吹${dir}风（约 ${k} km/h），会把在苏门答腊一侧形成的风暴推向半岛西海岸。`,
+  rSteerSlow:k=>`引导风偏弱（约 ${k} km/h），即使形成飑线也走得慢，常在海峡上就散掉。`,
+  rSteerWrong:(dir,f)=>`引导风来自${dir}（${f}°），风暴不会被推向马来西亚。`,
+  rCapeHi:c=>`大气很不稳定（CAPE 约 ${c} J/kg），足以支撑强雷暴。`,
+  rCapeLo:c=>`大气不够不稳定（CAPE 约 ${c} J/kg），雷暴难以组织成线。`,
+  rConvHi:'凌晨海峡上有明显的低层辐合——两岸陆风在海上相遇，飑线常在这里诞生。',
+  rConvLo:'凌晨海峡上几乎没有低层辐合，缺少把空气抬升的触发。',
+  rRainHi:p=>`模型在海峡上画出雨带（${p}% 的海峡格点凌晨有 ≥2 mm/h 的雨）。`,
+  rRainLo:'模型凌晨在海峡上几乎没有降雨。',
+  rGustHi:(g,t,hh)=>`模型显示西海岸阵风可达 ${g} km/h（${t} ${hh}）。`,
+  earliest:(t,hh)=>`模型最早信号：${t} 约 ${hh}（MYT）。飑线的实际时间常与模型差一两个小时，以雷达为准。`,
+  advHead:'建议（默认做法）',
+  advLikely:w=>[
+    `明早 ${w} 前后暂停喷药、施肥和无人机作业。飑线一般一两个小时内过境，过后再开工。`,
+    '已安排在今晚或明早喷的药，改到飑线过后——刚喷上的药会被大雨冲掉。',
+    '榴莲结果期：强阵风会吹落果实。飑线过境时不要站在树下，过后再巡园捡果。',
+    '收好梯子和网具，固定遮阳网、临时棚；清理排水沟。',
+    '清晨骑摩托上工的员工，避开这个时段出门。',
+    '清晨 5 点左右看一眼雷达：海峡上若出现一条南北走向的雨带，那就是它。用下面地图的「标记飑线」估算到达时间。'],
+  advWatch:w=>[
+    '配置一般——飑线可能出现，也可能在海峡上就散掉。',
+    `若明早要喷药或放无人机，出工前（约 5–6 点）先看雷达；海峡上没有成片雨带再开工。模型关注时段：${w}。`,
+    '榴莲结果期：早上巡园前先看一眼雷达。'],
+  advLow:()=>[
+    '今晚的配置不利于苏门答腊飑线，早上的工作照常安排。',
+    '午后局部雷阵雨是另一回事——本软件只看凌晨到上午的飑线。'],
+  winDefault:'0–10 时',
+  stripHead:'海峡逐小时（18:00 → 12:00 MYT）',
+  stripSub:'色块 = 模型在海峡上 ≥2 mm/h 降雨的格点比例；箭头 = 引导风，指向风暴被推去的方向；红色底边 = 西海岸阵风 ≥45 km/h。点任一小时，可在地图上打开。',
+  keyNone:'无雨', keySome:'零星', keyBand:'成片', keyGust:'阵风 ≥45', keyArrowGood:'推向马来西亚', keyArrowBad:'其他方向',
+  ingHead:'指数怎么算（展开看算式）',
+  ing:{steer:'引导风（850 与 700 百帕平均）',cape:'不稳定度 CAPE',conv:'海峡低层辐合',rain:'模型海峡降雨',gust:'西海岸阵风',season:'季节'},
+  rawSteer:(f,dir,ms,k)=>`来自 ${f}°（${dir}），${ms} m/s（约 ${k} km/h），00–09 时海峡平均`,
+  rawCape:c=>`海峡格点 21–06 时最大值的第 75 百分位：${c} J/kg`,
+  rawConv:(m,x)=>`01–06 时平均 ${m} ×10⁻⁵ s⁻¹（最大 ${x}）`,
+  rawRain:(p,x)=>`${p}% 的海峡格点在 00–08 时有 ≥2 mm/h；最大 ${x} mm/h`,
+  rawGust:(g,t,hh)=>`02–10 时最大 ${g} km/h（${t} ${hh}）`,
+  rawSeason:(m,ph)=>`${m}，${ph}`,
+  thr:{steer:'来自 200–290° 得方向满分，170° 或 320° 以外为 0；速度 2 m/s 为 0、10 m/s 满分；两者相乘。',
+       cape:'500 J/kg 为 0，2000 J/kg 满分。',conv:'0 或以下为 0，2.0 ×10⁻⁵ s⁻¹ 满分。',
+       rain:'0% 为 0，40% 满分。',gust:'30 km/h 为 0，60 km/h 满分。',season:'5–9 月 1.0；4、10、11 月 0.7；12–3 月 0.3。'},
+  phase:{SW:'西南季风期',INTER:'季风过渡期',NE:'东北季风期'},
+  weight:w=>`权重 ${w}`, noData:'无数据', total:'合计（按有数据的权重换算成百分制）',
+  disc:'这是根据天气模型成分算出的「配置指数」，不是预报，也不是警告。模型网格（9–25 km）画不出一条飑线本身，只能看出有没有让它形成和移动的条件。天气警告以大马气象局（MET Malaysia）为准；实时以雷达为准。',
+  dirs:['北','东北','东','东南','南','西南','西','西北'],
+  mapHead:'地图', mapSub:'雷达和红外卫星是实时观测；风、雨、辐合是所选那一夜的模型图，用下面的滑杆逐小时查看。',
+  views:{pen:'半岛',east:'东马',all:'全马'},
+  ly:{radar:'雷达（实时）',sat:'红外卫星（实时）',w850:'引导风 850',w10:'地面风',rain:'模型雨量',conv:'辐合',towns:'城镇'},
+  slNote:'滑杆只移动模型图层；雷达和卫星始终显示最新观测。',
+  radarPlay:'播放雷达', radarStop:'停止', radarTime:t=>`雷达 ${t} MYT`, radarErr:'雷达读取失败', radarNone:'雷达图层已关闭',
+  radarNote:'雷达覆盖有限：海峡上空一片空白，可能只是没有雷达覆盖，不代表没有雨。',
+  satTime:t=>`卫星 ${t} MYT`, satErr:'卫星图块读取失败（NASA GIBS 可能延迟），正往前找较早的图。', satGive:'找不到可用的卫星图。',
+  lgRain:'模型雨量 mm/h', lgWind:'风速 km/h', lgConv:'红 = 辐合（空气被抬升）、蓝 = 辐散', lgAxis:'虚线 = 海峡中线',
+  mapErr:'地图程序库未能载入——首次使用需要联网一次。其余部分照常可用。',
+  markBtn:'标记飑线', markClear:'清除标记', markHint1:'在雷达上点一下雨带的一端', markHint2:'再点雨带的另一端',
+  etaHead:(k,dir,hh)=>`按 ${hh} 的引导风（约 ${k} km/h，吹向${dir}）估算到达时间`,
+  etaNow:'正在经过', etaIn:(h,t)=>`约 ${h} 小时后（${t}）`, etaAway:'不会移向这里', etaBeyond:'（在所标雨带两端之外）', etaNoSteer:'没有引导风数据，无法估算',
+  etaNote:'假设雨带跟着 850–700 百帕风移动，这只是粗估；飑线常比平均风更快。以雷达实况为准。',
+  townsHead:'城镇', townsSub:'所选那一夜 00–12 时（MYT）的模型信号。「信号」= 某小时 ≥2 mm/h 雨或阵风 ≥45 km/h。',
+  grp:{west:'半岛西海岸——飑线的主要受影响区',inland:'内陆与东海岸——飑线越过蒂迪旺沙山脉后通常减弱',east:'东马（沙巴、砂拉越）'},
+  eastNote:'苏门答腊飑线到不了东马——中间隔着约 700 km 的南中国海。这里列出的是模型对当地同一时段的雷雨信号，属于东马本身的夜间/清晨雷暴（多在海上形成、早上移上岸），不是苏门答腊飑线。',
+  tFirst:'首个信号', tGust:'最大阵风', tRain:'00–12 时雨量', tLag:'离海峡中线', tSig:'有信号', tQuiet:'无信号',
+  lagH:h=>`中线过后约 ${h} 小时`, lagUp:'在中线上风一侧', lagNa:'—',
+  guideHead:'说明',
+  gWhat:'苏门答腊飑线是什么',
+  gWhatBody:'一条南北向排开、长达数百公里的雷暴带。它多在午夜后于苏门答腊东岸或马六甲海峡上空形成，被西南到西风推着向东移，凌晨到上午扫过半岛西海岸。来时往往先起一阵强风（常见 40–80 km/h），随后是大雨和雷电，通常一两个小时内就过去。',
+  gWhy:'为什么总在凌晨',
+  gWhyBody:'夜里陆地降温比海快，苏门答腊和半岛两岸都吹出「陆风」，吹向较暖的海峡，在海上相遇——空气只能往上走。海峡上空暖湿、不稳定，抬升的空气就长成雷暴，再排成一条线。高一层的西南风（850–700 百帕）把这条线推向马来西亚。',
+  gWhen:'什么季节',
+  gWhenBody:'多见于西南季风期（约 5–9 月）和前后的季风过渡期（4 月、10–11 月）；东北季风期（12–3 月）引导风多是东风，很少出现。下图的深浅就是本软件用的季节分数。',
+  gWhere:'影响哪里',
+  gWhereBody:'主要是半岛西海岸，从霹雳到柔佛，尤其雪兰莪至柔佛一带（以及新加坡）。越过蒂迪旺沙山脉后通常减弱，有时仍以较弱的雷雨到达彭亨内陆；东海岸较少受影响。',
+  gEast:'东马呢',
+  gEastBody:'苏门答腊飑线不会到达沙巴、砂拉越。东马有自己的夜间雷暴：陆风在近岸海上辐合形成，早上可能移上岸。本软件在「城镇」里仍列出东马各地的模型信号，但明确标为本地雷暴。',
+  gImpact:'对农场和生活的影响',
+  gImpactBody:'突发强阵风会折断树枝、吹倒香蕉等浅根作物、吹落榴莲果；大雨冲掉刚喷的药；雷电危及户外作业；海上渔船和海峡航运也受影响。好在它来得快、去得也快。',
+  gHow:'怎么用这个软件',
+  gHowSteps:['傍晚看「今晚」：配置等级和建议就是默认做法。','指数的每一分都能展开看算式和门槛。','清晨 5 点左右打开地图看雷达；若海峡上有南北走向的雨带，点「标记飑线」，在雨带两端各点一下，就能看到各城镇的大约到达时间。','「城镇」列出各地模型最早信号的时间和最大阵风。'],
+  gLimits:'局限',
+  gLimitsBody:'模型网格（ECMWF 9 km、GFS 约 25 km）太粗，画不出飑线本身，时间常差一两个小时，也可能完全漏掉或误报。指数只说明「条件是否齐备」。雷达是实况，大马气象局是警告的权威。',
+  gThr:'全部门槛一览',
+  gCredits:'数据来源与致谢',
+  gCreditsBody:'模型：Open-Meteo（CC BY 4.0），数据来自 ECMWF IFS 与 NOAA GFS。雷达：Weather data by RainViewer（rainviewer.com）。红外卫星：NASA GIBS，Himawari-9 AHI 第 13 波段。底图：© OpenStreetMap 贡献者 © CARTO。天气警告请看大马气象局（met.gov.my）。',
+  dg:{sum:'苏门答腊',strait:'马六甲海峡',pen:'马来半岛',lb:'陆风',steer:'引导风（西南→东北）',t1:'约 0–3 时 形成',t2:'约 3–6 时 过海峡',t3:'约 5–10 时 到西海岸',mt:'蒂迪旺沙山脉'},
+  calHead:'季节分数（本软件使用）',
+  updReady:'新版本已就绪——点这里重新载入', aaTitle:'文字大小',
+  foot:v=>`版本 ${v}。所有时间均为马来西亚时间（MYT，UTC+8）。`,
+},
+en: {
+  langShort:'EN', appTitle:'Sumatra Squall', pickLangSub:'You can change it any time with the language button at top right.',
+  navVerdict:'Tonight', navMap:'Map', navTowns:'Towns', navGuide:'Guide',
+  setTitle:'Settings', setNight:'Which night', setModel:'Weather model',
+  modelEcSub:'European centre', modelGfsSub:'US NOAA',
+  nightRel:['Last night → this morning','Tonight → tomorrow morning','Tomorrow night → morning after'],
+  nightDate:(e,m)=> e.mo===m.mo ? `Night of ${e.d}→${m.d} ${MON_EN[m.mo-1]}` : `Night of ${e.d} ${MON_EN[e.mo-1]} → ${m.d} ${MON_EN[m.mo-1]}`,
+  fresh:(model,time,ago)=>`Model ${model}, fetched ${time} MYT (${ago})`,
+  agoMin:n=>`${n} min ago`, agoH:n=>`${n} h ago`,
+  reload:'Reload', reloadNext:t=>`Next reload ${t}`, loading:'Loading…',
+  errNoData:r=>`Could not load model data: ${r}. Check your connection, then tap Reload.`,
+  errCache:(r,t)=>`This load failed (${r}). Showing the older data from ${t}.`,
+  stale:h=>`The data is ${h} hours old and the verdict may be out of date. Reload.`,
+  modelFallback:(a,b)=>`${a} did not answer; using ${b} instead.`,
+  townErr:r=>`Town data failed to load (${r}): the town list and the west-coast gust ingredient have no data; everything else works.`,
+  levels:{low:'Unfavourable',watch:'Watch',likely:'Favourable',strong:'Strongly favourable'},
+  scoreOf:s=>`Index ${s} / 100`,
+  gateNote:'The steering wind is not pushing storms toward Malaysia, so the index is capped at 30.',
+  missingNote:l=>`No data for: ${l}. Left out of the calculation.`,
+  rSteerGood:(dir,k)=>`A ${dir} wind (about ${k} km/h) above the Strait will push storms that form on the Sumatra side toward the Peninsula's west coast.`,
+  rSteerSlow:k=>`The steering wind is weak (about ${k} km/h); a squall line would move slowly and often dies over the Strait.`,
+  rSteerWrong:(dir,f)=>`The steering wind blows from the ${dir} (${f}°), so storms will not be pushed toward Malaysia.`,
+  rCapeHi:c=>`The air is very unstable (CAPE about ${c} J/kg) — enough to feed strong thunderstorms.`,
+  rCapeLo:c=>`The air is not unstable enough (CAPE about ${c} J/kg) for storms to organise into a line.`,
+  rConvHi:'Low-level winds converge over the Strait before dawn — the land breezes from both coasts meet at sea, where squall lines are born.',
+  rConvLo:'There is little low-level convergence over the Strait before dawn, so nothing is lifting the air.',
+  rRainHi:p=>`The model draws a rain band over the Strait (${p}% of Strait points get ≥2 mm/h before dawn).`,
+  rRainLo:'The model shows almost no rain over the Strait before dawn.',
+  rGustHi:(g,t,hh)=>`The model gives west-coast gusts up to ${g} km/h (${t}, ${hh}).`,
+  earliest:(t,hh)=>`Earliest model signal: ${t} around ${hh} MYT. Real squalls often run an hour or two off the model — trust the radar.`,
+  advHead:'What to do (default plan)',
+  advLikely:w=>[
+    `Pause spraying, fertilising and drone work around ${w} tomorrow morning. A squall line usually passes within an hour or two; resume after it.`,
+    'Move any spraying planned for tonight or early tomorrow to after the squall — heavy rain washes fresh spray off.',
+    'Durian fruiting season: strong gusts knock fruit down. Stay out from under the trees while it passes; collect fallen fruit afterwards.',
+    'Put away ladders and nets, tie down shade netting and temporary shelters, and clear the drains.',
+    'Workers who ride motorcycles to work early should avoid travelling in that window.',
+    'Check the radar around 5 am: a north–south rain band over the Strait is the squall line. Use "Mark squall line" on the map below to estimate arrival times.'],
+  advWatch:w=>[
+    'Mixed setup — a squall line may form, or may die over the Strait.',
+    `If you plan to spray or fly a drone tomorrow morning, check the radar first (around 5–6 am) and start only if there is no organised rain band over the Strait. Model window to watch: ${w}.`,
+    'Durian fruiting season: glance at the radar before the morning orchard round.'],
+  advLow:()=>[
+    'Tonight\'s setup does not favour a Sumatra squall. Plan the morning as usual.',
+    'Afternoon local thunderstorms are a separate matter — this app only looks at the pre-dawn to morning squall.'],
+  winDefault:'00:00–10:00',
+  stripHead:'The Strait, hour by hour (18:00 → 12:00 MYT)',
+  stripSub:'Colour = share of Strait points where the model rains ≥2 mm/h. Arrow = steering wind, pointing where storms are pushed. Red bottom edge = west-coast gust ≥45 km/h. Tap an hour to open it on the map.',
+  keyNone:'no rain', keySome:'scattered', keyBand:'banded', keyGust:'gust ≥45', keyArrowGood:'toward Malaysia', keyArrowBad:'other directions',
+  ingHead:'How the index is computed (tap to see the arithmetic)',
+  ing:{steer:'Steering wind (850 and 700 hPa mean)',cape:'Instability (CAPE)',conv:'Low-level convergence over the Strait',rain:'Model rain over the Strait',gust:'West-coast gusts',season:'Season'},
+  rawSteer:(f,dir,ms,k)=>`From ${f}° (${dir}), ${ms} m/s (about ${k} km/h), Strait mean 00–09`,
+  rawCape:c=>`75th percentile of Strait points' 21–06 maximum: ${c} J/kg`,
+  rawConv:(m,x)=>`Mean 01–06: ${m} ×10⁻⁵ s⁻¹ (max ${x})`,
+  rawRain:(p,x)=>`${p}% of Strait points reach ≥2 mm/h 00–08; max ${x} mm/h`,
+  rawGust:(g,t,hh)=>`Max 02–10: ${g} km/h (${t}, ${hh})`,
+  rawSeason:(m,ph)=>`${m}, ${ph}`,
+  thr:{steer:'Direction full marks FROM 200–290°, zero beyond 170° or 320°; speed zero at 2 m/s, full at 10 m/s; the two are multiplied.',
+       cape:'Zero at 500 J/kg, full at 2000 J/kg.',conv:'Zero at or below 0, full at 2.0 ×10⁻⁵ s⁻¹.',
+       rain:'Zero at 0%, full at 40%.',gust:'Zero at 30 km/h, full at 60 km/h.',season:'May–Sep 1.0; Apr, Oct, Nov 0.7; Dec–Mar 0.3.'},
+  phase:{SW:'south-west monsoon',INTER:'inter-monsoon',NE:'north-east monsoon'},
+  weight:w=>`weight ${w}`, noData:'No data', total:'Total (scaled to 100 over the weights that have data)',
+  disc:'This is a setup index computed from weather-model ingredients — not a forecast and not a warning. A 9–25 km model grid cannot draw the squall line itself, only whether the conditions to form and move one are in place. MET Malaysia issues the official warnings; the radar shows what is actually happening.',
+  dirs:['north','north-east','east','south-east','south','south-west','west','north-west'],
+  mapHead:'Map', mapSub:'Radar and infrared satellite are live observations. Wind, rain and convergence are the model for the chosen night — use the slider to step through the hours.',
+  views:{pen:'Peninsula',east:'East Malaysia',all:'All Malaysia'},
+  ly:{radar:'Radar (live)',sat:'Infrared satellite (live)',w850:'Steering wind 850',w10:'Surface wind',rain:'Model rain',conv:'Convergence',towns:'Towns'},
+  slNote:'The slider moves the model layers only; radar and satellite always show the latest observation.',
+  radarPlay:'Play radar', radarStop:'Stop', radarTime:t=>`Radar ${t} MYT`, radarErr:'Radar failed to load', radarNone:'Radar layer is off',
+  radarNote:'Radar coverage is limited: a blank Strait may just mean no radar coverage, not no rain.',
+  satTime:t=>`Satellite ${t} MYT`, satErr:'Satellite tiles failed (NASA GIBS may be running late); stepping back to an earlier image.', satGive:'No usable satellite image found.',
+  lgRain:'Model rain mm/h', lgWind:'Wind km/h', lgConv:'red = converging (air lifted), blue = diverging', lgAxis:'dashed = Strait mid-line',
+  mapErr:'The map library did not load — it needs the internet once. Everything else still works.',
+  markBtn:'Mark squall line', markClear:'Clear mark', markHint1:'Tap one end of the rain band on the radar', markHint2:'Now tap the other end',
+  etaHead:(k,dir,hh)=>`Arrival estimate using the ${hh} steering wind (about ${k} km/h, toward the ${dir})`,
+  etaNow:'passing now', etaIn:(h,t)=>`in about ${h} h (${t})`, etaAway:'not moving this way', etaBeyond:' (beyond the marked ends)', etaNoSteer:'No steering-wind data — cannot estimate',
+  etaNote:'Assumes the band moves with the 850–700 hPa wind. A rough guide only; squall lines often run faster than the mean wind. Trust the radar.',
+  townsHead:'Towns', townsSub:'Model signals for the chosen night, 00:00–12:00 MYT. "Signal" = an hour with ≥2 mm/h rain or a gust ≥45 km/h.',
+  grp:{west:'West coast of the Peninsula — where squall lines hit',inland:'Interior and east coast — squalls usually weaken after crossing the Titiwangsa range',east:'East Malaysia (Sabah, Sarawak)'},
+  eastNote:'Sumatra squalls do not reach East Malaysia — about 700 km of South China Sea lies between. What is listed here is the model\'s local storm signal for the same hours: Borneo\'s own night and early-morning storms, which form offshore and can move ashore in the morning. They are not Sumatra squalls.',
+  tFirst:'First signal', tGust:'Peak gust', tRain:'Rain 00–12', tLag:'From Strait mid-line', tSig:'Signal', tQuiet:'No signal',
+  lagH:h=>`about ${h} h after mid-line`, lagUp:'upwind of the mid-line', lagNa:'—',
+  guideHead:'Guide',
+  gWhat:'What a Sumatra squall is',
+  gWhatBody:'A north–south line of thunderstorms, often hundreds of kilometres long. It usually forms after midnight over Sumatra\'s east coast or the Strait of Malacca and is pushed east by south-westerly to westerly winds, sweeping the Peninsula\'s west coast between the small hours and mid-morning. It arrives with a sudden strong wind (commonly 40–80 km/h), then heavy rain and lightning, and usually passes within an hour or two.',
+  gWhy:'Why before dawn',
+  gWhyBody:'At night land cools faster than the sea, so both Sumatra and the Peninsula blow a land breeze toward the warmer Strait. The two meet at sea and the air has nowhere to go but up. Over the warm, moist, unstable Strait, that lifted air grows into thunderstorms that organise into a line, and the south-westerly wind a little higher up (850–700 hPa) pushes the line toward Malaysia.',
+  gWhen:'Which season',
+  gWhenBody:'Most common in the south-west monsoon (about May–September) and the inter-monsoon months either side (April, October–November). In the north-east monsoon (December–March) the steering wind is mostly easterly and squalls are rare. The shading below is the season score this app uses.',
+  gWhere:'Where it hits',
+  gWhereBody:'Mainly the Peninsula\'s west coast from Perak to Johor, especially Selangor to Johor (and Singapore). Squall lines usually weaken after crossing the Titiwangsa range, sometimes still reaching interior Pahang as weaker storms; the east coast is less affected.',
+  gEast:'What about East Malaysia',
+  gEastBody:'Sumatra squalls do not reach Sabah or Sarawak. East Malaysia has its own night-time storms, formed where land breezes converge just offshore, which can move ashore in the morning. The Towns section still lists the model signal for East Malaysian towns, clearly labelled as local storms.',
+  gImpact:'Effects on farms and daily life',
+  gImpactBody:'Sudden strong gusts break branches, flatten shallow-rooted crops such as bananas and knock durians down; heavy rain washes off fresh spray; lightning endangers outdoor work; fishing boats and shipping in the Strait are affected too. The good news: it comes fast and goes fast.',
+  gHow:'How to use this app',
+  gHowSteps:['In the evening, read "Tonight": the level and the advice are the default plan.','Every point of the index can be opened to show the arithmetic and thresholds.','Around 5 am, open the map and look at the radar. If a north–south rain band sits over the Strait, tap "Mark squall line", tap both ends of the band, and read the rough arrival time for each town.','"Towns" lists each place\'s earliest model signal and peak gust.'],
+  gLimits:'Limits',
+  gLimitsBody:'Model grids (ECMWF 9 km, GFS about 25 km) are too coarse to draw the squall line itself; timing is often an hour or two off, and a squall can be missed or falsely shown. The index only says whether the ingredients are in place. The radar is the ground truth; MET Malaysia is the authority for warnings.',
+  gThr:'All thresholds',
+  gCredits:'Data sources and credits',
+  gCreditsBody:'Model: Open-Meteo (CC BY 4.0), from ECMWF IFS and NOAA GFS. Radar: Weather data by RainViewer (rainviewer.com). Infrared satellite: NASA GIBS, Himawari-9 AHI band 13. Base map: © OpenStreetMap contributors © CARTO. For weather warnings see MET Malaysia (met.gov.my).',
+  dg:{sum:'Sumatra',strait:'Strait of Malacca',pen:'Peninsula',lb:'land breeze',steer:'steering wind (SW → NE)',t1:'~00–03 forms',t2:'~03–06 crosses',t3:'~05–10 west coast',mt:'Titiwangsa'},
+  calHead:'Season score (used by this app)',
+  updReady:'A new version is ready — tap to reload', aaTitle:'Text size',
+  foot:v=>`Version ${v}. All times are Malaysia time (MYT, UTC+8).`,
+},
+ms: {
+  langShort:'BM', appTitle:'Badai Sumatera', pickLangSub:'Boleh ditukar bila-bila masa melalui butang bahasa di kanan atas.',
+  navVerdict:'Malam ini', navMap:'Peta', navTowns:'Bandar', navGuide:'Panduan',
+  setTitle:'Tetapan', setNight:'Malam yang mana', setModel:'Model cuaca',
+  modelEcSub:'Pusat Eropah', modelGfsSub:'NOAA AS',
+  nightRel:['Malam tadi → pagi ini','Malam ini → esok pagi','Esok malam → lusa pagi'],
+  nightDate:(e,m)=> e.mo===m.mo ? `Malam ${e.d}→${m.d} ${MON_MS[m.mo-1]}` : `Malam ${e.d} ${MON_MS[e.mo-1]} → ${m.d} ${MON_MS[m.mo-1]}`,
+  fresh:(model,time,ago)=>`Model ${model}, dimuat ${time} MYT (${ago})`,
+  agoMin:n=>`${n} minit lalu`, agoH:n=>`${n} jam lalu`,
+  reload:'Muat semula', reloadNext:t=>`Muat semula seterusnya ${t}`, loading:'Memuat…',
+  errNoData:r=>`Data model gagal dimuat: ${r}. Semak sambungan, kemudian tekan Muat semula.`,
+  errCache:(r,t)=>`Muatan ini gagal (${r}). Data lama dari ${t} dipaparkan.`,
+  stale:h=>`Data sudah ${h} jam lama; kesimpulan mungkin sudah lapuk. Muat semula.`,
+  modelFallback:(a,b)=>`${a} tidak menjawab; ${b} digunakan.`,
+  townErr:r=>`Data bandar gagal dimuat (${r}): senarai bandar dan bahan tiupan pantai barat tiada data; bahagian lain berfungsi.`,
+  levels:{low:'Tidak menggalakkan',watch:'Berjaga-jaga',likely:'Menggalakkan',strong:'Sangat menggalakkan'},
+  scoreOf:s=>`Indeks ${s} / 100`,
+  gateNote:'Angin pemandu tidak menolak ribut ke arah Malaysia, jadi indeks dihadkan kepada 30.',
+  missingNote:l=>`Tiada data untuk: ${l}. Dikecualikan daripada pengiraan.`,
+  rSteerGood:(dir,k)=>`Angin dari ${dir} (kira-kira ${k} km/j) di atas Selat akan menolak ribut yang terbentuk di sebelah Sumatera ke pantai barat Semenanjung.`,
+  rSteerSlow:k=>`Angin pemandu lemah (kira-kira ${k} km/j); garis badai akan bergerak perlahan dan selalunya lenyap di atas Selat.`,
+  rSteerWrong:(dir,f)=>`Angin pemandu bertiup dari ${dir} (${f}°), jadi ribut tidak ditolak ke arah Malaysia.`,
+  rCapeHi:c=>`Udara sangat tidak stabil (CAPE kira-kira ${c} J/kg) — cukup untuk ribut petir yang kuat.`,
+  rCapeLo:c=>`Udara kurang tidak stabil (CAPE kira-kira ${c} J/kg) untuk ribut tersusun menjadi garis.`,
+  rConvHi:'Angin aras rendah menumpu di atas Selat sebelum subuh — bayu darat dari kedua-dua pantai bertemu di laut, tempat garis badai lahir.',
+  rConvLo:'Hampir tiada penumpuan angin aras rendah di atas Selat sebelum subuh; tiada yang mengangkat udara.',
+  rRainHi:p=>`Model melukis jalur hujan di atas Selat (${p}% titik Selat menerima ≥2 mm/j sebelum subuh).`,
+  rRainLo:'Model hampir tidak menunjukkan hujan di atas Selat sebelum subuh.',
+  rGustHi:(g,t,hh)=>`Model memberi tiupan kencang pantai barat sehingga ${g} km/j (${t}, ${hh}).`,
+  earliest:(t,hh)=>`Isyarat model terawal: ${t} sekitar ${hh} MYT. Garis badai sebenar selalunya lari sejam dua daripada model — percayai radar.`,
+  advHead:'Tindakan (pelan asas)',
+  advLikely:w=>[
+    `Hentikan semburan racun, pembajaan dan kerja dron sekitar ${w} esok pagi. Garis badai biasanya berlalu dalam sejam dua; sambung kerja selepas itu.`,
+    'Pindahkan semburan yang dirancang malam ini atau awal pagi esok ke selepas garis badai — hujan lebat membasuh racun yang baru disembur.',
+    'Musim berbuah durian: tiupan kencang menggugurkan buah. Jangan berdiri di bawah pokok semasa ia melintas; kutip buah gugur selepas itu.',
+    'Simpan tangga dan jaring, ikat jaring teduhan dan bangsal sementara, dan bersihkan longkang.',
+    'Pekerja yang menunggang motosikal awal pagi elakkan perjalanan dalam tempoh itu.',
+    'Semak radar sekitar jam 5 pagi: jalur hujan utara–selatan di atas Selat ialah garis badai. Guna "Tanda garis badai" pada peta di bawah untuk menganggar masa tiba.'],
+  advWatch:w=>[
+    'Keadaan bercampur — garis badai mungkin terbentuk, atau lenyap di atas Selat.',
+    `Jika merancang semburan atau dron esok pagi, semak radar dahulu (sekitar 5–6 pagi) dan mula hanya jika tiada jalur hujan tersusun di atas Selat. Tempoh model untuk diperhati: ${w}.`,
+    'Musim berbuah durian: lihat radar sebelum meronda kebun pagi.'],
+  advLow:()=>[
+    'Keadaan malam ini tidak menggalakkan garis badai Sumatera. Rancang kerja pagi seperti biasa.',
+    'Ribut petir tempatan waktu petang ialah perkara lain — perisian ini hanya melihat garis badai subuh hingga pagi.'],
+  winDefault:'00:00–10:00',
+  stripHead:'Selat, jam demi jam (18:00 → 12:00 MYT)',
+  stripSub:'Warna = bahagian titik Selat yang model beri hujan ≥2 mm/j. Anak panah = angin pemandu, menunjuk ke mana ribut ditolak. Tepi bawah merah = tiupan pantai barat ≥45 km/j. Ketik mana-mana jam untuk membukanya di peta.',
+  keyNone:'tiada hujan', keySome:'bertaburan', keyBand:'berjalur', keyGust:'tiupan ≥45', keyArrowGood:'ke arah Malaysia', keyArrowBad:'arah lain',
+  ingHead:'Cara indeks dikira (ketik untuk lihat kiraan)',
+  ing:{steer:'Angin pemandu (purata 850 dan 700 hPa)',cape:'Ketidakstabilan (CAPE)',conv:'Penumpuan angin aras rendah di Selat',rain:'Hujan model di atas Selat',gust:'Tiupan kencang pantai barat',season:'Musim'},
+  rawSteer:(f,dir,ms,k)=>`Dari ${f}° (${dir}), ${ms} m/s (kira-kira ${k} km/j), purata Selat 00–09`,
+  rawCape:c=>`Persentil ke-75 nilai maksimum 21–06 titik Selat: ${c} J/kg`,
+  rawConv:(m,x)=>`Purata 01–06: ${m} ×10⁻⁵ s⁻¹ (maks ${x})`,
+  rawRain:(p,x)=>`${p}% titik Selat mencapai ≥2 mm/j 00–08; maks ${x} mm/j`,
+  rawGust:(g,t,hh)=>`Maks 02–10: ${g} km/j (${t}, ${hh})`,
+  rawSeason:(m,ph)=>`${m}, ${ph}`,
+  thr:{steer:'Arah markah penuh DARI 200–290°, sifar melebihi 170° atau 320°; kelajuan sifar pada 2 m/s, penuh pada 10 m/s; kedua-duanya didarab.',
+       cape:'Sifar pada 500 J/kg, penuh pada 2000 J/kg.',conv:'Sifar pada 0 atau kurang, penuh pada 2.0 ×10⁻⁵ s⁻¹.',
+       rain:'Sifar pada 0%, penuh pada 40%.',gust:'Sifar pada 30 km/j, penuh pada 60 km/j.',season:'Mei–Sep 1.0; Apr, Okt, Nov 0.7; Dis–Mac 0.3.'},
+  phase:{SW:'monsun barat daya',INTER:'peralihan monsun',NE:'monsun timur laut'},
+  weight:w=>`pemberat ${w}`, noData:'Tiada data', total:'Jumlah (diskala kepada 100 atas pemberat yang ada data)',
+  disc:'Ini indeks keadaan yang dikira daripada bahan model cuaca — bukan ramalan dan bukan amaran. Grid model 9–25 km tidak dapat melukis garis badai itu sendiri, hanya sama ada syarat untuk membentuk dan menggerakkannya wujud. Amaran rasmi dikeluarkan oleh MET Malaysia; radar menunjukkan keadaan sebenar.',
+  dirs:['utara','timur laut','timur','tenggara','selatan','barat daya','barat','barat laut'],
+  mapHead:'Peta', mapSub:'Radar dan satelit inframerah ialah cerapan langsung. Angin, hujan dan penumpuan ialah model untuk malam yang dipilih — guna gelangsar untuk melihat jam demi jam.',
+  views:{pen:'Semenanjung',east:'Malaysia Timur',all:'Seluruh Malaysia'},
+  ly:{radar:'Radar (langsung)',sat:'Satelit inframerah (langsung)',w850:'Angin pemandu 850',w10:'Angin permukaan',rain:'Hujan model',conv:'Penumpuan',towns:'Bandar'},
+  slNote:'Gelangsar hanya menggerakkan lapisan model; radar dan satelit sentiasa menunjukkan cerapan terkini.',
+  radarPlay:'Main radar', radarStop:'Henti', radarTime:t=>`Radar ${t} MYT`, radarErr:'Radar gagal dimuat', radarNone:'Lapisan radar ditutup',
+  radarNote:'Liputan radar terhad: Selat yang kosong mungkin hanya bermaksud tiada liputan radar, bukan tiada hujan.',
+  satTime:t=>`Satelit ${t} MYT`, satErr:'Jubin satelit gagal (NASA GIBS mungkin lewat); mencari imej lebih awal.', satGive:'Tiada imej satelit yang boleh digunakan.',
+  lgRain:'Hujan model mm/j', lgWind:'Angin km/j', lgConv:'merah = menumpu (udara diangkat), biru = mencapah', lgAxis:'garis putus = garis tengah Selat',
+  mapErr:'Pustaka peta gagal dimuat — perlukan internet sekali. Bahagian lain masih berfungsi.',
+  markBtn:'Tanda garis badai', markClear:'Padam tanda', markHint1:'Ketik satu hujung jalur hujan pada radar', markHint2:'Sekarang ketik hujung yang satu lagi',
+  etaHead:(k,dir,hh)=>`Anggaran masa tiba guna angin pemandu ${hh} (kira-kira ${k} km/j, ke arah ${dir})`,
+  etaNow:'sedang melintas', etaIn:(h,t)=>`dalam kira-kira ${h} jam (${t})`, etaAway:'tidak bergerak ke sini', etaBeyond:' (di luar hujung yang ditanda)', etaNoSteer:'Tiada data angin pemandu — tidak dapat menganggar',
+  etaNote:'Andaian: jalur bergerak bersama angin 850–700 hPa. Panduan kasar sahaja; garis badai selalunya lebih laju daripada angin purata. Percayai radar.',
+  townsHead:'Bandar', townsSub:'Isyarat model untuk malam dipilih, 00:00–12:00 MYT. "Isyarat" = jam dengan hujan ≥2 mm/j atau tiupan ≥45 km/j.',
+  grp:{west:'Pantai barat Semenanjung — kawasan utama garis badai',inland:'Pedalaman dan pantai timur — garis badai biasanya lemah selepas melintasi Banjaran Titiwangsa',east:'Malaysia Timur (Sabah, Sarawak)'},
+  eastNote:'Garis badai Sumatera tidak sampai ke Malaysia Timur — kira-kira 700 km Laut China Selatan memisahkannya. Yang disenaraikan di sini ialah isyarat ribut tempatan model untuk jam yang sama: ribut malam dan awal pagi Borneo sendiri, yang terbentuk di luar pantai dan boleh bergerak ke darat pada waktu pagi. Ia bukan garis badai Sumatera.',
+  tFirst:'Isyarat pertama', tGust:'Tiupan maks', tRain:'Hujan 00–12', tLag:'Dari garis tengah Selat', tSig:'Ada isyarat', tQuiet:'Tiada isyarat',
+  lagH:h=>`kira-kira ${h} jam selepas garis tengah`, lagUp:'di sebelah angin garis tengah', lagNa:'—',
+  guideHead:'Panduan',
+  gWhat:'Apa itu garis badai Sumatera',
+  gWhatBody:'Satu barisan ribut petir utara–selatan, selalunya ratusan kilometer panjang. Ia biasanya terbentuk selepas tengah malam di pantai timur Sumatera atau di atas Selat Melaka dan ditolak ke timur oleh angin barat daya hingga barat, melanda pantai barat Semenanjung antara awal pagi hingga pertengahan pagi. Ia tiba dengan angin kencang mengejut (biasanya 40–80 km/j), diikuti hujan lebat dan kilat, dan biasanya berlalu dalam sejam dua.',
+  gWhy:'Mengapa sebelum subuh',
+  gWhyBody:'Pada waktu malam darat menyejuk lebih cepat daripada laut, jadi Sumatera dan Semenanjung sama-sama meniupkan bayu darat ke arah Selat yang lebih panas. Kedua-duanya bertemu di laut dan udara hanya boleh naik. Di atas Selat yang panas, lembap dan tidak stabil, udara yang terangkat membesar menjadi ribut petir yang tersusun menjadi garis, dan angin barat daya di aras lebih tinggi (850–700 hPa) menolak garis itu ke arah Malaysia.',
+  gWhen:'Musim yang mana',
+  gWhenBody:'Paling kerap semasa monsun barat daya (kira-kira Mei–September) dan bulan peralihan di kedua-dua belah (April, Oktober–November). Semasa monsun timur laut (Disember–Mac) angin pemandu kebanyakannya dari timur dan garis badai jarang berlaku. Lorekan di bawah ialah skor musim yang digunakan perisian ini.',
+  gWhere:'Kawasan yang dilanda',
+  gWhereBody:'Terutamanya pantai barat Semenanjung dari Perak hingga Johor, khususnya Selangor hingga Johor (dan Singapura). Garis badai biasanya lemah selepas melintasi Banjaran Titiwangsa, kadangkala masih sampai ke pedalaman Pahang sebagai ribut yang lebih lemah; pantai timur kurang terjejas.',
+  gEast:'Bagaimana dengan Malaysia Timur',
+  gEastBody:'Garis badai Sumatera tidak sampai ke Sabah atau Sarawak. Malaysia Timur mempunyai ribut malamnya sendiri, terbentuk apabila bayu darat menumpu di luar pantai, yang boleh bergerak ke darat pada waktu pagi. Bahagian Bandar tetap menyenaraikan isyarat model untuk bandar Malaysia Timur, dilabel jelas sebagai ribut tempatan.',
+  gImpact:'Kesan kepada ladang dan kehidupan',
+  gImpactBody:'Tiupan kencang mengejut mematahkan dahan, merebahkan tanaman berakar cetek seperti pisang dan menggugurkan durian; hujan lebat membasuh racun yang baru disembur; kilat membahayakan kerja luar; bot nelayan dan perkapalan di Selat turut terjejas. Berita baiknya: ia datang cepat dan pergi cepat.',
+  gHow:'Cara menggunakan perisian ini',
+  gHowSteps:['Pada waktu petang, baca "Malam ini": tahap dan nasihat ialah pelan asas.','Setiap markah indeks boleh dibuka untuk melihat kiraan dan ambang.','Sekitar jam 5 pagi, buka peta dan lihat radar. Jika ada jalur hujan utara–selatan di atas Selat, ketik "Tanda garis badai", ketik kedua-dua hujung jalur, dan baca anggaran masa tiba bagi setiap bandar.','"Bandar" menyenaraikan isyarat model terawal dan tiupan maksimum setiap tempat.'],
+  gLimits:'Had',
+  gLimitsBody:'Grid model (ECMWF 9 km, GFS kira-kira 25 km) terlalu kasar untuk melukis garis badai itu sendiri; masa selalunya lari sejam dua, dan garis badai boleh terlepas atau tersalah tunjuk. Indeks hanya menyatakan sama ada bahan-bahannya wujud. Radar ialah kebenaran di lapangan; MET Malaysia ialah pihak berkuasa amaran.',
+  gThr:'Semua ambang',
+  gCredits:'Sumber data dan penghargaan',
+  gCreditsBody:'Model: Open-Meteo (CC BY 4.0), daripada ECMWF IFS dan NOAA GFS. Radar: Weather data by RainViewer (rainviewer.com). Satelit inframerah: NASA GIBS, Himawari-9 AHI jalur 13. Peta asas: © penyumbang OpenStreetMap © CARTO. Untuk amaran cuaca rujuk MET Malaysia (met.gov.my).',
+  dg:{sum:'Sumatera',strait:'Selat Melaka',pen:'Semenanjung',lb:'bayu darat',steer:'angin pemandu (BD → TL)',t1:'~00–03 terbentuk',t2:'~03–06 melintasi',t3:'~05–10 pantai barat',mt:'Titiwangsa'},
+  calHead:'Skor musim (digunakan perisian ini)',
+  updReady:'Versi baharu sedia — ketik untuk muat semula', aaTitle:'Saiz teks',
+  foot:v=>`Versi ${v}. Semua masa ialah waktu Malaysia (MYT, UTC+8).`,
+},
+};
+
+/* ---------- state ---------- */
+const S = {
+  lang: null, size: 0, model: 'ecmwf', night: 0, hourPos: 9,
+  layers: { radar: true, sat: false, w850: true, w10: false, rain: false, conv: false, towns: true },
+  D: null, err: null, townErr: null, fallbackNote: null, loading: false, A: null, marks: [], marking: 0,
+};
+const SIZES = [17, 19, 21];
+function T(key, ...args) { const v = I18N[S.lang || 'zh'][key]; return typeof v === 'function' ? v(...args) : v; }
+const $ = id => document.getElementById(id);
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c])); }
+function tname(t) { return t[S.lang || 'zh'] || t.en; }
+function hhmm(ts) { const p = mytParts(ts); return String(p.h).padStart(2, '0') + ':' + String(p.mi).padStart(2, '0'); }
+function dirName(deg) { return T('dirs')[Math.round(((deg % 360) + 360) % 360 / 45) % 8]; }
+function monthName(mo) { return S.lang === 'zh' ? MON_ZH(mo) : S.lang === 'ms' ? MON_MS[mo - 1] : MON_EN[mo - 1]; }
+function nowSec() { return Math.floor(Date.now() / 1000); }
+function f1(x) { return (Math.round(x * 10) / 10).toFixed(1); }
+
+/* ---------- data ---------- */
+const MODELS = {
+  ecmwf: { label: 'ECMWF', ids: ['ecmwf_ifs', 'ecmwf_ifs025'], names: { ecmwf_ifs:'ECMWF IFS 9 km', ecmwf_ifs025:'ECMWF IFS 0.25°' } },
+  gfs:   { label: 'GFS',   ids: ['gfs_seamless'], names: { gfs_seamless:'NOAA GFS' } },
+};
+const GVARS = ['wind_speed_10m','wind_direction_10m','wind_gusts_10m','precipitation','cape','wind_speed_850hPa','wind_direction_850hPa','wind_speed_700hPa','wind_direction_700hPa'];
+const GKEYS = { wind_speed_10m:'ws10', wind_direction_10m:'wd10', wind_gusts_10m:'gu10', precipitation:'pr', cape:'cape', wind_speed_850hPa:'ws850', wind_direction_850hPa:'wd850', wind_speed_700hPa:'ws700', wind_direction_700hPa:'wd700' };
+const TVARS = ['precipitation','wind_gusts_10m','cape'];
+const TKEYS = { precipitation:'pr', wind_gusts_10m:'gu', cape:'cape' };
+
+function omURL(pts, vars, model, cell) {
+  return 'https://api.open-meteo.com/v1/forecast?latitude=' + pts.map(p => p.lat).join(',') + '&longitude=' + pts.map(p => p.lon).join(',') +
+    '&hourly=' + vars.join(',') + '&models=' + model + '&timezone=GMT&timeformat=unixtime&past_days=1&forecast_days=3&wind_speed_unit=kmh' + (cell ? '&cell_selection=' + cell : '');
+}
+async function fetchJSON(url, tries = 2) {
+  let lastErr = null;
+  for (let a = 0; a < tries; a++) {
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 30000);
+    try {
+      const r = await fetch(url, { signal: ctl.signal, cache: 'no-store' });
+      clearTimeout(tm);
+      if (r.ok) return await r.json();
+      let why = 'HTTP ' + r.status;
+      try { const j = await r.json(); if (j && j.reason) why += ' — ' + j.reason; } catch (e) {}
+      lastErr = new Error(why); lastErr.status = r.status;
+      if (r.status !== 429 && r.status !== 503) break;
+    } catch (e) { clearTimeout(tm); lastErr = new Error(e.name === 'AbortError' ? 'timeout 30 s' : (e.message || 'network error')); }
+    if (a < tries - 1) await new Promise(res => setTimeout(res, 2000 + Math.random() * 2000));   // jittered cooldown before the retry
+  }
+  throw lastErr;
+}
+/** Open-Meteo multi-location → { times, series:{key:[point][hour]} } */
+function parseMulti(json, n, keymap) {
+  const arr = Array.isArray(json) ? json : [json];
+  if (arr.length !== n) throw new Error('expected ' + n + ' points, got ' + arr.length);
+  const times = arr[0].hourly && arr[0].hourly.time;
+  if (!times || !times.length) throw new Error('no hourly times');
+  const series = {};
+  for (const [v, key] of Object.entries(keymap)) series[key] = arr.map(o => (o.hourly && o.hourly[v]) ? o.hourly[v] : times.map(() => null));
+  return { times, series };
+}
+function buildD(model, modelId, at, g, t) {
+  const D = { model, modelId, at, times: g.times, grid: g.series, towns: null, idx: new Map() };
+  g.times.forEach((ts, i) => D.idx.set(ts, i));
+  if (t) {
+    const off = new Map(t.times.map((ts, i) => [ts, i]));
+    D.towns = {};
+    TOWNS.forEach((tw, n) => {
+      const o = {};
+      for (const key of Object.values(TKEYS)) o[key] = D.times.map(ts => { const i = off.get(ts); return i == null ? null : t.series[key][n][i]; });
+      D.towns[tw.id] = o;
+    });
+  }
+  return D;
+}
+async function loadModel(model) {
+  const M = MODELS[model]; let lastErr = null;
+  for (let i = 0; i < M.ids.length; i++) {
+    const id = M.ids[i];
+    try {
+      const gj = await fetchJSON(omURL(GPTS, GVARS, id, 'nearest'));
+      const g = parseMulti(gj, GPTS.length, GKEYS);
+      let t = null, townErr = null;
+      try { const tj = await fetchJSON(omURL(TOWNS, TVARS, id, null)); t = parseMulti(tj, TOWNS.length, TKEYS); }
+      catch (e) { townErr = e.message; }
+      return { raw: { model, modelId: id, at: Date.now(), g, t }, fell: i > 0 ? [M.names[M.ids[0]], M.names[id]] : null, townErr };
+    } catch (e) { lastErr = e; if (e.status !== 400) break; }   // only a rejected model/variable (400) tries the next id; a busy server does not
+  }
+  throw lastErr;
+}
+function cacheKey(model) { return LSK.cache + model; }
+
+async function refresh(force) {
+  if (S.loading) return;
+  const cached = lsGet(cacheKey(S.model), null);
+  if (!force && cached && (Date.now() - cached.at) < MIN_RELOAD_MIN * 60000) { useRaw(cached); S.err = null; renderAll(); return; }
+  S.loading = true; renderFresh();
+  try {
+    const res = await loadModel(S.model);
+    S.fallbackNote = res.fell; S.err = null; S.townErr = res.townErr || null;
+    useRaw(res.raw);
+    if (!lsSet(cacheKey(S.model), res.raw)) { /* storage full — keep working from memory */ }
+  } catch (e) {
+    S.err = e.message || String(e);
+    if (cached) useRaw(cached);
+  } finally { S.loading = false; renderAll(); }
+}
+function useRaw(raw) { S.D = buildD(raw.model, raw.modelId, raw.at, raw.g, raw.t); }
+
+/* ---------- rendering ---------- */
+function analyze() {
+  if (!S.D) { S.A = null; return; }
+  const M0 = nightMorning(nowSec(), S.night);
+  S.A = analyzeNight(S.D, M0); S.A.strip = stripData(S.D, M0);
+}
+function renderAll() { analyze(); renderStatic(); renderFresh(); renderSettings(); renderVerdict(); renderTowns(); renderMapAll(); }
+
+function renderStatic() {
+  document.documentElement.lang = S.lang === 'ms' ? 'ms' : S.lang === 'en' ? 'en' : 'zh';
+  document.documentElement.style.setProperty('--fs', SIZES[S.size] + 'px');
+  $('appTitle').textContent = T('appTitle');
+  document.title = T('appTitle');
+  $('btnLang').textContent = T('langShort');
+  $('btnSize').title = T('aaTitle'); $('btnSize').setAttribute('aria-label', T('aaTitle'));
+  for (const k of ['navVerdict','navMap','navTowns','navGuide','setTitle','setNight','setModel','advHead','stripHead','stripSub','ingHead','disc','mapHead','mapSub','slNote','townsHead','townsSub','guideHead'])
+    $(k).textContent = T(k);
+  $('foot').textContent = T('foot', VERSION);
+  renderGuide();
+}
+
+function renderFresh() {
+  const b = $('banner'), f = $('fresh'), btn = $('btnReload');
+  let html = '';
+  if (S.fallbackNote) html += `<div class="banner amber">${esc(T('modelFallback', ...S.fallbackNote))}</div>`;
+  if (S.err && !S.D) html += `<div class="banner red">${esc(T('errNoData', S.err))}</div>`;
+  else if (S.err && S.D) html += `<div class="banner amber">${esc(T('errCache', S.err, hhmm(Math.floor(S.D.at / 1000))))}</div>`;
+  if (S.townErr && S.D) html += `<div class="banner amber">${esc(T('townErr', S.townErr))}</div>`;
+  if (S.D) { const ageH = (Date.now() - S.D.at) / 3600000; if (ageH > STALE_H) html += `<div class="banner red">${esc(T('stale', Math.floor(ageH)))}</div>`; }
+  b.innerHTML = html;
+  if (S.D) {
+    const mins = Math.round((Date.now() - S.D.at) / 60000);
+    const ago = mins < 90 ? T('agoMin', mins) : T('agoH', Math.round(mins / 60));
+    f.textContent = T('fresh', MODELS[S.D.model].names[S.D.modelId] || S.D.modelId, hhmm(Math.floor(S.D.at / 1000)), ago);
+  } else f.textContent = S.loading ? T('loading') : '';
+  if (S.loading) { btn.disabled = true; btn.textContent = T('loading'); return; }
+  const next = S.D ? S.D.at + MIN_RELOAD_MIN * 60000 : 0;
+  if (S.D && !S.err && Date.now() < next) { btn.disabled = true; btn.textContent = T('reloadNext', hhmm(Math.floor(next / 1000))); }
+  else { btn.disabled = false; btn.textContent = T('reload'); }
+}
+
+function renderSettings() {
+  const now = nowSec(), today0 = mytMidnight(now);
+  $('segNight').innerHTML = [0, 1].map(w => {
+    const M0 = nightMorning(now, w), rel = Math.round((M0 - today0) / 86400);
+    const e = mytParts(M0 - 86400), m = mytParts(M0);
+    return `<button data-night="${w}" aria-pressed="${S.night === w}">${esc(T('nightRel')[rel] || '')}<small>${esc(T('nightDate', e, m))}</small></button>`;
+  }).join('');
+  $('segModel').innerHTML = ['ecmwf', 'gfs'].map(m =>
+    `<button data-model="${m}" aria-pressed="${S.model === m}">${MODELS[m].label}<small>${esc(T(m === 'ecmwf' ? 'modelEcSub' : 'modelGfsSub'))}</small></button>`).join('');
+}
+
+function reasonsFor(A) {
+  const P = A.parts, out = [];
+  if (!P.steer.missing) {
+    const k = Math.round(P.steer.st.spd * 3.6);
+    if (P.steer.df === 0) out.push(T('rSteerWrong', dirName(P.steer.st.from), Math.round(P.steer.st.from)));
+    else if (P.steer.sf < 0.35) out.push(T('rSteerSlow', k));
+    else if (P.steer.df >= 0.5) out.push(T('rSteerGood', dirName(P.steer.st.from), k));
+  }
+  if (!P.rain.missing) { if (P.rain.score >= 0.5) out.push(T('rRainHi', Math.round(P.rain.frac * 100))); else if (P.rain.score <= 0.1) out.push(T('rRainLo')); }
+  if (!P.conv.missing) { if (P.conv.score >= 0.6) out.push(T('rConvHi')); else if (P.conv.score <= 0.1) out.push(T('rConvLo')); }
+  if (!P.cape.missing) { const c = Math.round(P.cape.c / 50) * 50; if (P.cape.score >= 0.6) out.push(T('rCapeHi', c)); else if (P.cape.score <= 0.15) out.push(T('rCapeLo', c)); }
+  if (!P.gust.missing && P.gust.score >= 0.5) out.push(T('rGustHi', Math.round(P.gust.g), tname(P.gust.town), hhmm(P.gust.ts)));
+  return out.slice(0, 4).join(S.lang === 'zh' ? '' : ' ');
+}
+
+function renderVerdict() {
+  const A = S.A, box = $('verdict');
+  box.className = 'blk' + (A && A.level ? ' ' + A.level : '');
+  const now = nowSec(), M0 = nightMorning(now, S.night), rel = Math.round((M0 - mytMidnight(now)) / 86400);
+  $('vNight').textContent = (T('nightRel')[rel] || '') + '  ' + T('nightDate', mytParts(M0 - 86400), mytParts(M0));
+  if (!A || A.score == null) {
+    $('vLevel').textContent = S.loading ? T('loading') : T('noData'); $('vScore').textContent = ''; $('vReason').textContent = '';
+    $('vEarly').hidden = true; $('adv').innerHTML = ''; $('strip').innerHTML = ''; $('stripKey').innerHTML = ''; $('ing').innerHTML = ''; return;
+  }
+  $('vLevel').textContent = T('levels')[A.level];
+  $('vScore').textContent = T('scoreOf', A.score);
+  let reason = reasonsFor(A);
+  if (A.gate) reason += (reason ? ' ' : '') + T('gateNote');
+  if (A.missing.length) reason += ' ' + T('missingNote', A.missing.map(k => T('ing')[k]).join(S.lang === 'zh' ? '、' : ', '));
+  $('vReason').textContent = reason;
+  const e = A.earliest;
+  if (e && A.level !== 'low') { $('vEarly').hidden = false; $('vEarly').textContent = T('earliest', tname(e.town), hhmm(e.first)); }
+  else $('vEarly').hidden = true;
+  // advice window: from earliest west-coast signal to latest first-signal + 2 h, else default
+  let win = T('winDefault');
+  const firsts = A.towns.filter(r => r.town.g === 'west' && r.first != null).map(r => r.first);
+  if (firsts.length) { const a = Math.min(...firsts), b = Math.max(...firsts) + 7200; win = hhmm(a) + '–' + hhmm(b); }
+  const adv = A.level === 'low' ? T('advLow') : A.level === 'watch' ? T('advWatch', win) : T('advLikely', win);
+  $('adv').innerHTML = adv.map(s => `<li>${esc(s)}</li>`).join('');
+  renderStrip(); renderIngredients();
+}
+
+const FRAC_COL = [[0.02,'#e3eaee'],[0.1,'#c3d5f2'],[0.2,'#86a9e6'],[0.35,'#4f6fd0'],[0.5,'#3b2f9e'],[2,'#23145f']];
+function fracColor(f) { if (f == null) return '#f4f4f4'; for (const [lim, c] of FRAC_COL) if (f < lim) return c; return '#23145f'; }
+function arrowSVG(st, big) {
+  if (!st) return '<svg viewBox="0 0 24 24"></svg>';
+  const to = (st.from + 180) % 360, good = dirFactor(st.from) > 0 && st.spd >= THR.steerSpdZero;
+  const col = good ? '#b42318' : '#6b7f8c';
+  return `<svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(${to.toFixed(0)} 12 12)"><path d="M12 3v15" stroke="${col}" stroke-width="${big ? 2.6 : 3}" fill="none"/><path d="M6.5 9 12 2.5 17.5 9z" fill="${col}"/></g></svg>`;
+}
+function renderStrip() {
+  const cells = S.A.strip, now = nowSec();
+  $('strip').innerHTML = cells.map((c, i) => {
+    const p = mytParts(c.t), isNow = now >= c.t && now < c.t + 3600;
+    const show = p.h % 3 === 0;
+    const cls = 'scell' + (isNow ? ' now' : '') + (c.gust != null && c.gust >= THR.sigGust ? ' gust' : '');
+    return `<button class="${cls}" data-pos="${i}" aria-label="${hhmm(c.t)}"><span class="hh">${show ? String(p.h).padStart(2, '0') : ''}</span><span class="bar" style="background:${c.missing ? '#f4f4f4' : fracColor(c.frac)}"></span>${arrowSVG(c.missing ? null : c.st)}</button>`;
+  }).join('');
+  $('stripKey').innerHTML =
+    `<span><i class="sw" style="background:${fracColor(0)}"></i>${esc(T('keyNone'))}</span>` +
+    `<span><i class="sw" style="background:${fracColor(0.15)}"></i>${esc(T('keySome'))}</span>` +
+    `<span><i class="sw" style="background:${fracColor(0.45)}"></i>${esc(T('keyBand'))}</span>` +
+    `<span><i class="sw" style="box-shadow:inset 0 -5px 0 #b42318"></i>${esc(T('keyGust'))}</span>` +
+    `<span style="color:#b42318">▲ ${esc(T('keyArrowGood'))}</span><span style="color:#6b7f8c">▲ ${esc(T('keyArrowBad'))}</span>`;
+}
+function renderIngredients() {
+  const P = S.A.parts, ing = T('ing'), thr = T('thr');
+  const raw = (k, p) => {
+    if (p.missing) return T('noData');
+    switch (k) {
+      case 'steer': return T('rawSteer', Math.round(p.st.from), dirName(p.st.from), f1(p.st.spd), Math.round(p.st.spd * 3.6));
+      case 'cape': return T('rawCape', Math.round(p.c));
+      case 'conv': return T('rawConv', f1(p.mean * 1e5), f1(p.max * 1e5));
+      case 'rain': return T('rawRain', Math.round(p.frac * 100), f1(p.max));
+      case 'gust': return T('rawGust', Math.round(p.g), tname(p.town), hhmm(p.ts));
+      case 'season': return T('rawSeason', monthName(p.mo), T('phase')[p.phase]);
+    }
+  };
+  let tot = 0, wt = 0;
+  const rows = Object.keys(W8).map(k => {
+    const p = P[k]; if (!p.missing) { tot += p.pts; wt += p.w; }
+    const sc = p.missing ? '—' : `${f1(p.pts)} / ${p.w}`;
+    return `<div class="irow"><div class="ih"><span>${esc(ing[k])}</span><span class="ipts">${sc}</span></div>
+      <div class="ibar"><i style="width:${p.missing ? 0 : Math.round(p.score * 100)}%"></i></div>
+      <div class="iraw">${esc(raw(k, p))}</div><div class="ithr">${esc(thr[k])} ${esc(T('weight', p.w))}.</div></div>`;
+  }).join('');
+  const gate = S.A.gate ? `<div class="ithr">${esc(T('gateNote'))}</div>` : '';
+  $('ing').innerHTML = rows + `<div class="itot"><span>${esc(T('total'))}</span><span>${f1(tot)} / ${wt} → ${S.A.score}</span></div>` + gate;
+}
+
+function renderTowns() {
+  const A = S.A, box = $('townList');
+  if (!A) { box.innerHTML = ''; return; }
+  const G = { west: [], inland: [], east: [] };
+  for (const r of A.towns) G[r.town.g].push(r);
+  const row = r => {
+    const sig = r.first != null;
+    const lag = r.lag == null ? T('lagNa') : r.lag.upwind ? T('lagUp') : T('lagH', f1(r.lag.h));
+    const noTown = r.gust == null && r.rain == null;
+    return `<div class="town"><div class="tn"><b>${esc(tname(r.town))}</b>${noTown ? `<span class="tag q">${esc(T('noData'))}</span>` : `<span class="tag ${sig ? 'sig' : 'q'}">${esc(sig ? T('tSig') : T('tQuiet'))}</span>`}</div>
+      <div class="tgrid"><div><span>${esc(T('tFirst'))}：</span><b>${sig ? hhmm(r.first) : '—'}</b></div>
+      <div><span>${esc(T('tGust'))}：</span><b>${r.gust == null ? '—' : Math.round(r.gust) + ' km/h' + (r.gustH ? ' @' + hhmm(r.gustH) : '')}</b></div>
+      <div><span>${esc(T('tRain'))}：</span><b>${r.rain == null ? '—' : f1(r.rain) + ' mm'}</b></div>
+      ${r.town.g !== 'east' ? `<div><span>${esc(T('tLag'))}：</span><b>${esc(lag)}</b></div>` : ''}</div></div>`;
+  };
+  const colon = S.lang === 'zh' ? '：' : ': ';
+  box.innerHTML = ['west', 'inland', 'east'].map(g =>
+    `<div class="tgroup"><h3>${esc(T('grp')[g])}</h3>${g === 'east' ? `<p class="enote">${esc(T('eastNote'))}</p>` : ''}${G[g].map(row).join('')}</div>`).join('').replace(/：<\/span>/g, colon + '</span>');
+}
+
+function diagramSVG() {
+  const d = T('dg');
+  return `<svg class="diag" viewBox="0 0 680 300" role="img" aria-label="${esc(d.strait)}">
+  <rect x="0" y="0" width="680" height="300" fill="#eaf3f7"/>
+  <path d="M0 210 L150 196 L190 210 L0 210Z" fill="#8a7a55"/><rect x="0" y="210" width="190" height="90" fill="#8a7a55"/>
+  <rect x="190" y="212" width="250" height="88" fill="#1c7f8c"/>
+  <path d="M440 210 L520 204 L560 170 L585 150 L610 172 L640 196 L680 200 L680 300 L440 300Z" fill="#8a7a55"/>
+  <text x="95" y="255" text-anchor="middle" fill="#fff" font-size="18" font-weight="700">${esc(d.sum)}</text>
+  <text x="315" y="262" text-anchor="middle" fill="#fff" font-size="17" font-weight="700">${esc(d.strait)}</text>
+  <text x="560" y="255" text-anchor="middle" fill="#fff" font-size="18" font-weight="700">${esc(d.pen)}</text>
+  <text x="590" y="140" text-anchor="middle" fill="#3b2f1a" font-size="14" font-weight="700">${esc(d.mt)}</text>
+  <g stroke="#0f1f2a" stroke-width="3" fill="#0f1f2a">
+    <path d="M120 200 H240" fill="none"/><path d="M240 193 L254 200 L240 207Z"/>
+    <path d="M520 200 H395" fill="none"/><path d="M395 193 L381 200 L395 207Z"/>
+  </g>
+  <text x="185" y="190" text-anchor="middle" fill="#0f1f2a" font-size="14" font-weight="700">${esc(d.lb)} →</text>
+  <text x="455" y="190" text-anchor="middle" fill="#0f1f2a" font-size="14" font-weight="700">← ${esc(d.lb)}</text>
+  <path d="M290 180 C270 180 268 150 290 146 C288 110 330 96 348 120 C360 70 420 78 418 118 C448 118 452 160 425 162 L430 180Z" fill="#4a5a68"/>
+  <path d="M300 96 H470" stroke="#4a5a68" stroke-width="16" stroke-linecap="round"/>
+  <g stroke="#2f5fc4" stroke-width="3"><path d="M312 186 l-8 20"/><path d="M340 186 l-8 20"/><path d="M368 186 l-8 20"/><path d="M396 186 l-8 20"/></g>
+  <path d="M388 128 l-12 22 h12 l-10 22" stroke="#f5b83d" stroke-width="4" fill="none"/>
+  <g stroke="#b42318" stroke-width="5" fill="#b42318"><path d="M120 50 H560" fill="none"/><path d="M560 38 L584 50 L560 62Z"/></g>
+  <text x="340" y="36" text-anchor="middle" fill="#b42318" font-size="16" font-weight="800">${esc(d.steer)}</text>
+  <g font-size="14" font-weight="700" fill="#0f1f2a">
+    <text x="250" y="292" text-anchor="middle" fill="#fff">${esc(d.t1)}</text><text x="378" y="292" text-anchor="middle" fill="#fff">${esc(d.t2)}</text><text x="500" y="292" text-anchor="middle" fill="#fff">${esc(d.t3)}</text>
+  </g></svg>`;
+}
+function renderGuide() {
+  const cal = Array.from({ length: 12 }, (_, i) => {
+    const f = seasonFactor(i + 1), bg = f >= 1 ? '#0b6674' : f >= 0.7 ? '#6fb3bd' : '#dbe7ec', fg = f >= 1 ? '#fff' : '#0f1f2a';
+    return `<div style="background:${bg};color:${fg}">${esc(monthName(i + 1))}<br>${f.toFixed(1)}</div>`;
+  }).join('');
+  const thr = T('thr'), ing = T('ing');
+  const thrRows = Object.keys(W8).map(k => `<tr><th>${esc(ing[k])}</th><td>${esc(thr[k])} ${esc(T('weight', W8[k]))}.</td></tr>`).join('') +
+    `<tr><th>—</th><td>${esc(T('gateNote'))}</td></tr><tr><th>—</th><td>${esc(T('townsSub'))}</td></tr>`;
+  const sec = (h, body, open) => `<details class="fold"${open ? ' open' : ''}><summary>${esc(h)}</summary>${body}</details>`;
+  $('guideBody').innerHTML =
+    sec(T('gWhat'), `<p>${esc(T('gWhatBody'))}</p>${diagramSVG()}`, true) +
+    sec(T('gWhy'), `<p>${esc(T('gWhyBody'))}</p>`) +
+    sec(T('gWhen'), `<p>${esc(T('gWhenBody'))}</p><p><b>${esc(T('calHead'))}</b></p><div class="cal">${cal}</div>`) +
+    sec(T('gWhere'), `<p>${esc(T('gWhereBody'))}</p>`) +
+    sec(T('gEast'), `<p>${esc(T('gEastBody'))}</p>`) +
+    sec(T('gImpact'), `<p>${esc(T('gImpactBody'))}</p>`) +
+    sec(T('gHow'), `<ol class="steps">${T('gHowSteps').map(s => `<li>${esc(s)}</li>`).join('')}</ol>`) +
+    sec(T('gLimits'), `<p>${esc(T('gLimitsBody'))}</p>`) +
+    sec(T('gThr'), `<table class="thr">${thrRows}</table>`) +
+    sec(T('gCredits'), `<p>${esc(T('gCreditsBody'))}</p><p><a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a> · <a href="https://www.earthdata.nasa.gov/gibs" target="_blank" rel="noopener">NASA GIBS</a> · <a href="https://www.met.gov.my/" target="_blank" rel="noopener">MET Malaysia</a></p>`);
+}
+
+/* ---------- map ---------- */
+const MAP = { m: null, groups: {}, cv: null, radar: { frames: [], layers: {}, idx: -1, timer: null, err: null, host: '' }, sat: { layer: null, time: null, fails: 0, back: 0, give: false }, markLayer: null };
+const VIEWS = { pen: [[0.8, 97.8], [6.7, 104.4]], east: [[0.8, 109.5], [7.3, 119.3]], all: [[0.8, 98.5], [7.3, 119.3]] };
+let curView = 'pen';
+
+function initMap() {
+  if (!window.L || !L.map) { $('mapbox').innerHTML = `<div class="maperr">${esc(T('mapErr'))}</div>`; return; }
+  const m = L.map('mapbox', { minZoom: 4, maxZoom: 11, zoomSnap: 0.5, worldCopyJump: false });
+  MAP.m = m;
+  m.fitBounds(VIEWS.pen);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19, attribution: '© OpenStreetMap © CARTO' }).addTo(m);
+  m.createPane('sat').style.zIndex = 250;
+  m.createPane('radar').style.zIndex = 350;
+  m.createPane('model').style.zIndex = 420;
+  m.createPane('marks').style.zIndex = 620;
+  MAP.cv = L.canvas({ pane: 'model', padding: 0.3 });
+  for (const g of ['w850', 'w10', 'rain', 'conv', 'towns', 'axis']) MAP.groups[g] = L.layerGroup().addTo(m);
+  MAP.markLayer = L.layerGroup().addTo(m);
+  L.polyline(AXIS, { color: '#07434d', weight: 2.5, dashArray: '8 7', interactive: false, pane: 'model' }).addTo(MAP.groups.axis);
+  m.attributionControl.addAttribution('<a href="https://open-meteo.com/">Open-Meteo</a>');
+  m.on('click', onMapClick);
+}
+const SPD_COL = [[15,'#4d6573'],[30,'#0b6674'],[45,'#b7791f'],[1e9,'#b42318']];
+const RAIN_COL = [[0.5,null],[2.5,'#9cc4ef'],[7,'#4f8ede'],[20,'#2449b5'],[1e9,'#6a1fb0']];
+function colBy(tab, x) { for (const [lim, c] of tab) if (x < lim) return c; return tab[tab.length - 1][1]; }
+function arrowLines(lat, lon, kmh, from) {
+  const to = (from + 180) * Math.PI / 180, len = Math.min(0.42, 0.06 + kmh * 0.0075);
+  const cosl = Math.cos(lat * Math.PI / 180);
+  const dx = Math.sin(to) * len / cosl, dy = Math.cos(to) * len;
+  const a = [lat - dy / 2, lon - dx / 2], b = [lat + dy / 2, lon + dx / 2];
+  const h = len * 0.38, back = to + Math.PI;
+  const h1 = [b[0] + Math.cos(back + 0.45) * h, b[1] + Math.sin(back + 0.45) * h / cosl];
+  const h2 = [b[0] + Math.cos(back - 0.45) * h, b[1] + Math.sin(back - 0.45) * h / cosl];
+  return [[a, b], [h1, b, h2]];
+}
+function sliderTs() { const M0 = nightMorning(nowSec(), S.night); return M0 + (S.hourPos - 6) * 3600; }
+function renderModelLayers() {
+  if (!MAP.m) return;
+  for (const g of ['w850', 'w10', 'rain', 'conv']) MAP.groups[g].clearLayers();
+  const D = S.D; if (!D) return;
+  const h = D.idx.get(sliderTs()); if (h == null) return;
+  const G = D.grid;
+  if (S.layers.rain) for (const p of GPTS) {
+    const v = G.pr[p.k][h]; if (v == null) continue; const c = colBy(RAIN_COL, v); if (!c) continue;
+    L.rectangle([[p.lat - 0.25, p.lon - 0.25], [p.lat + 0.25, p.lon + 0.25]], { renderer: MAP.cv, stroke: false, fillColor: c, fillOpacity: 0.55, interactive: false }).addTo(MAP.groups.rain);
+  }
+  if (S.layers.conv) for (const k of STRAIT_INNER) {
+    const c = convAt(G, k, h); if (c == null || Math.abs(c) < 0.5e-5) continue; const p = GPTS[k];
+    L.rectangle([[p.lat - 0.25, p.lon - 0.25], [p.lat + 0.25, p.lon + 0.25]], { renderer: MAP.cv, stroke: false, fillColor: c > 0 ? '#d62d20' : '#2f6fd6', fillOpacity: clamp(Math.abs(c) / 3e-5, 0.15, 0.6), interactive: false }).addTo(MAP.groups.conv);
+  }
+  const drawWind = (grp, sk, dk, wgt) => {
+    for (const p of GPTS) {
+      const s = G[sk][p.k][h], d = G[dk][p.k][h]; if (s == null || d == null) continue;
+      const col = colBy(SPD_COL, s);
+      for (const ln of arrowLines(p.lat, p.lon, s, d)) L.polyline(ln, { renderer: MAP.cv, color: col, weight: wgt, interactive: false }).addTo(MAP.groups[grp]);
+    }
+  };
+  if (S.layers.w850) drawWind('w850', 'ws850', 'wd850', 2.4);
+  if (S.layers.w10) drawWind('w10', 'ws10', 'wd10', 1.8);
+}
+function renderTownMarkers() {
+  if (!MAP.m) return; MAP.groups.towns.clearLayers();
+  if (!S.layers.towns || !S.A) return;
+  for (const r of S.A.towns) {
+    const sig = r.first != null;
+    const mk = L.circleMarker([r.town.lat, r.town.lon], { pane: 'marks', radius: 8, weight: 2.5, color: '#0f1f2a', fillColor: sig ? '#b42318' : '#ffffff', fillOpacity: 1 });
+    const lag = r.lag == null ? '' : r.lag.upwind ? T('lagUp') : T('lagH', f1(r.lag.h));
+    mk.bindPopup(`<b>${esc(tname(r.town))}</b><br>${esc(T('tFirst'))}: ${sig ? hhmm(r.first) : '—'}<br>${esc(T('tGust'))}: ${r.gust == null ? '—' : Math.round(r.gust) + ' km/h'}<br>${esc(T('tRain'))}: ${r.rain == null ? '—' : f1(r.rain) + ' mm'}${lag ? '<br>' + esc(T('tLag')) + ': ' + esc(lag) : ''}`);
+    mk.bindTooltip(tname(r.town), { direction: 'right', offset: [8, 0] });
+    mk.addTo(MAP.groups.towns);
+  }
+}
+function renderMapControls() {
+  const V = T('views');
+  $('segView').innerHTML = Object.keys(VIEWS).map(v => `<button data-view="${v}" aria-pressed="${curView === v}">${esc(V[v])}</button>`).join('');
+  const Ly = T('ly');
+  $('segLayers').innerHTML = Object.keys(S.layers).map(k => `<button data-layer="${k}" aria-pressed="${!!S.layers[k]}">${esc(Ly[k])}</button>`).join('');
+  $('slTime').textContent = hhmm(sliderTs()) + ' MYT';
+  $('slider').value = S.hourPos;
+  $('slNote').textContent = T('slNote');
+  $('segRadar').innerHTML = S.layers.radar ? `<button data-radar="1" aria-pressed="${!!MAP.radar.timer}">${esc(MAP.radar.timer ? T('radarStop') : T('radarPlay'))}</button>` : '';
+  $('segMark').innerHTML = `<button data-mark="1" aria-pressed="${S.marking > 0}">${esc(T('markBtn'))}</button>` + (S.marks.length ? `<button data-mark="clear">${esc(T('markClear'))}</button>` : '');
+  $('markHint').hidden = !S.marking; $('markHint').textContent = S.marking === 1 ? T('markHint1') : S.marking === 2 ? T('markHint2') : '';
+  const lg = [];
+  if (S.layers.rain) lg.push(`<span class="lg">${esc(T('lgRain'))}: ${RAIN_COL.filter(r => r[1]).map((r, i, a) => `<i class="sw" style="background:${r[1]}"></i>${i === 0 ? '0.5' : a[i - 1][0]}`).join(' ')}</span>`);
+  if (S.layers.w850 || S.layers.w10) lg.push(`<span class="lg">${esc(T('lgWind'))}: ${SPD_COL.map((r, i) => `<i class="sw" style="background:${r[1]}"></i>${i === 0 ? '<15' : i === SPD_COL.length - 1 ? '≥' + SPD_COL[i - 1][0] : SPD_COL[i - 1][0] + '–' + r[0]}`).join(' ')}</span>`);
+  if (S.layers.conv) lg.push(`<span class="lg">${esc(T('lgConv'))}</span>`);
+  lg.push(`<span class="lg">${esc(T('lgAxis'))}</span>`);
+  $('legend').innerHTML = lg.join('');
+  renderLiveSrc();
+}
+function renderLiveSrc() {
+  const bits = [];
+  if (S.layers.radar) {
+    const R = MAP.radar;
+    if (R.err) bits.push(T('radarErr') + ': ' + R.err);
+    else if (R.idx >= 0 && R.frames[R.idx]) bits.push(T('radarTime', hhmm(R.frames[R.idx].time)));
+    bits.push(T('radarNote'));
+  }
+  if (S.layers.sat) { if (MAP.sat.give) bits.push(T('satGive')); else if (MAP.sat.time) bits.push(T('satTime', hhmm(MAP.sat.time)) + (MAP.sat.back ? ' — ' + T('satErr') : '')); }
+  $('liveSrc').textContent = bits.join(' ');
+}
+function renderMapAll() {
+  renderMapControls();
+  if (!MAP.m) return;
+  renderModelLayers(); renderTownMarkers(); renderEta();
+  syncRadar(); syncSat();
+}
+
+/* radar — RainViewer free tier: past frames only, zoom ≤7, 512 px tiles, colour scheme 2 */
+async function syncRadar() {
+  const R = MAP.radar;
+  if (!S.layers.radar) { stopRadar(); for (const l of Object.values(R.layers)) MAP.m.removeLayer(l); R.layers = {}; R.idx = -1; return; }
+  if (!R.frames.length || Date.now() - (R.loadedAt || 0) > 10 * 60000) {
+    if (R.busy) return; R.busy = true;
+    try {
+      const j = await fetchJSON('https://api.rainviewer.com/public/weather-maps.json', 1);
+      R.host = j.host; R.frames = (j.radar && j.radar.past) || []; R.loadedAt = Date.now(); R.err = R.frames.length ? null : 'no frames';
+      for (const l of Object.values(R.layers)) MAP.m.removeLayer(l); R.layers = {};
+      R.idx = R.frames.length - 1;
+    } catch (e) { R.err = e.message; }
+    R.busy = false;
+  }
+  showRadarFrame(R.idx); renderLiveSrc();
+}
+function radarLayer(i) {
+  const R = MAP.radar, f = R.frames[i]; if (!f) return null;
+  if (!R.layers[f.path]) {
+    R.layers[f.path] = L.tileLayer(R.host + f.path + '/512/{z}/{x}/{y}/2/1_1.png', { pane: 'radar', tileSize: 512, zoomOffset: -1, maxNativeZoom: 8, maxZoom: 12, opacity: 0, attribution: '<a href="https://www.rainviewer.com/">Weather data by RainViewer</a>' });
+    R.layers[f.path].addTo(MAP.m);
+  }
+  return R.layers[f.path];
+}
+function showRadarFrame(i) {
+  const R = MAP.radar; if (i < 0 || !R.frames[i]) return;
+  const ly = radarLayer(i);
+  for (const [p, l] of Object.entries(R.layers)) l.setOpacity(l === ly ? 0.75 : 0);
+  R.idx = i;
+}
+function toggleRadarPlay() {
+  const R = MAP.radar;
+  if (R.timer) { stopRadar(); showRadarFrame(R.frames.length - 1); }
+  else if (R.frames.length) {
+    let i = 0, hold = 0;
+    R.timer = setInterval(() => {
+      if (hold > 0) { hold--; return; }
+      showRadarFrame(i); renderLiveSrc();
+      if (i === R.frames.length - 1) { hold = 2; i = 0; } else i++;
+    }, 700);
+  }
+  renderMapControls(); renderLiveSrc();
+}
+function stopRadar() { const R = MAP.radar; if (R.timer) { clearInterval(R.timer); R.timer = null; } }
+
+/* satellite — NASA GIBS Himawari AHI band 13 (10-minute steps, published with a delay) */
+function gibsTime(ts) { const d = new Date(ts * 1000); d.setUTCSeconds(0, 0); d.setUTCMinutes(Math.floor(d.getUTCMinutes() / 10) * 10); return d.toISOString().replace('.000Z', 'Z'); }
+function syncSat() {
+  const Sx = MAP.sat;
+  if (!S.layers.sat) { if (Sx.layer) { MAP.m.removeLayer(Sx.layer); Sx.layer = null; } return; }
+  if (Sx.layer && Sx.time && Date.now() / 1000 - Sx.time < 40 * 60) return;
+  Sx.back = 0; Sx.give = false; setSatTime(nowSec() - 50 * 60);
+}
+function setSatTime(ts) {
+  const Sx = MAP.sat; if (Sx.layer) MAP.m.removeLayer(Sx.layer);
+  ts = ts - (ts % 600); Sx.time = ts; Sx.fails = 0; Sx.ok = 0;
+  const url = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/Himawari_AHI_Band13_Clean_Infrared/default/' + gibsTime(ts) + '/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png';
+  const ly = L.tileLayer(url, { pane: 'sat', maxNativeZoom: 6, maxZoom: 12, opacity: 0.6, attribution: 'NASA GIBS · Himawari-9' });
+  ly.on('tileload', () => { Sx.ok++; });
+  ly.on('tileerror', () => {
+    Sx.fails++;
+    if (Sx.fails === 3 && Sx.ok === 0 && Sx.layer === ly) {
+      if (Sx.back < 12) { Sx.back++; setSatTime(ts - 600); } else { Sx.give = true; MAP.m.removeLayer(ly); Sx.layer = null; }
+      renderLiveSrc();
+    }
+  });
+  Sx.layer = ly.addTo(MAP.m); renderLiveSrc();
+}
+
+/* marking a squall line and estimating arrival */
+function onMapClick(ev) {
+  if (!S.marking) return;
+  S.marks.push([ev.latlng.lat, ev.latlng.lng]);
+  if (S.marking === 1) { S.marking = 2; }
+  else { S.marking = 0; }
+  renderMapControls(); renderEta();
+}
+function steerNow() {
+  const D = S.D; if (!D) return null;
+  const t = Math.floor(nowSec() / 3600) * 3600; const h = D.idx.get(t);
+  if (h == null) return null;
+  const st = steerOver(D.grid, [h]); return st ? Object.assign(st, { ts: t }) : null;
+}
+function renderEta() {
+  const box = $('eta');
+  if (MAP.markLayer) MAP.markLayer.clearLayers();
+  if (!S.marks.length) { box.hidden = true; return; }
+  if (MAP.m) {
+    for (const p of S.marks) L.circleMarker(p, { pane: 'marks', radius: 7, color: '#b42318', weight: 3, fillColor: '#fff', fillOpacity: 1 }).addTo(MAP.markLayer);
+    if (S.marks.length === 2) L.polyline(S.marks, { pane: 'marks', color: '#b42318', weight: 5, dashArray: '10 6' }).addTo(MAP.markLayer);
+  }
+  if (S.marks.length < 2) { box.hidden = true; return; }
+  const st = steerNow(); box.hidden = false;
+  if (!st) { box.innerHTML = `<b>${esc(T('etaNoSteer'))}</b>`; return; }
+  const [a, b] = S.marks, now = nowSec();
+  const rows = TOWNS.filter(t => t.g !== 'east').map(t => ({ t, e: etaFromLine(a, b, t.lat, t.lon, st) })).filter(r => r.e);
+  rows.sort((x, y) => (x.e.now ? -1 : x.e.h != null ? x.e.h : 1e9) - (y.e.now ? -1 : y.e.h != null ? y.e.h : 1e9));
+  const cell = e => e.now ? T('etaNow') : e.h != null ? T('etaIn', f1(e.h), hhmm(now + Math.round(e.h * 3600))) : T('etaAway');
+  box.innerHTML = `<b>${esc(T('etaHead', Math.round(st.spd * 3.6), dirName((st.from + 180) % 360), hhmm(st.ts)))}</b>
+    <table>${rows.map(r => `<tr><td>${esc(tname(r.t))}${r.e.beyond ? esc(T('etaBeyond')) : ''}</td><td>${esc(cell(r.e))}</td></tr>`).join('')}</table>
+    <p class="sub">${esc(T('etaNote'))}</p>`;
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b) return;
+  if (b.dataset.night != null) { S.night = +b.dataset.night; setDefaultHour(); renderAll(); }
+  else if (b.dataset.model) { if (S.model !== b.dataset.model) { S.model = b.dataset.model; lsSet(LSK.model, S.model); S.D = null; S.err = null; S.townErr = null; S.fallbackNote = null; renderAll(); refresh(false); } }
+  else if (b.dataset.view) { curView = b.dataset.view; if (MAP.m) MAP.m.fitBounds(VIEWS[curView]); renderMapControls(); }
+  else if (b.dataset.layer) { const k = b.dataset.layer; S.layers[k] = !S.layers[k]; lsSet(LSK.layers, S.layers); renderMapAll(); }
+  else if (b.dataset.radar) toggleRadarPlay();
+  else if (b.dataset.mark) {
+    if (b.dataset.mark === 'clear') { S.marks = []; S.marking = 0; }
+    else { S.marks = []; S.marking = S.marking ? 0 : 1; if (S.marking && !S.layers.radar) { S.layers.radar = true; lsSet(LSK.layers, S.layers); syncRadar(); } }
+    renderMapControls(); renderEta();
+  }
+  else if (b.dataset.pos != null) { S.hourPos = +b.dataset.pos; renderMapAll(); $('map').scrollIntoView({ behavior: 'smooth' }); }
+  else if (b.dataset.go) { $(b.dataset.go).scrollIntoView({ behavior: 'smooth' }); }
+  else if (b.dataset.lang) { setLang(b.dataset.lang); $('langOvl').hidden = true; }
+});
+$('btnReload').onclick = () => refresh(true);
+$('btnLang').onclick = () => { showLangPicker(); };
+$('btnSize').onclick = () => { S.size = (S.size + 1) % SIZES.length; lsSet(LSK.size, S.size); renderStatic(); if (MAP.m) MAP.m.invalidateSize(); };
+$('slider').addEventListener('input', e => { S.hourPos = +e.target.value; $('slTime').textContent = hhmm(sliderTs()) + ' MYT'; renderModelLayers(); });
+
+function showLangPicker() {
+  $('pickLang').textContent = S.lang ? ({ zh:'请选择语言', en:'Choose language', ms:'Pilih bahasa' })[S.lang] : '请选择语言 · Choose language · Pilih bahasa';
+  $('pickLangSub').textContent = S.lang ? T('pickLangSub') : '';
+  document.querySelectorAll('#langOvl .lbtn').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === S.lang)));
+  $('langOvl').hidden = false;
+}
+function setLang(l) { S.lang = l; lsSet(LSK.lang, l); renderAll(); }
+function setDefaultHour() {
+  const M0 = nightMorning(nowSec(), S.night), now = nowSec();
+  S.hourPos = (now >= M0 - 6 * 3600 && now <= M0 + 12 * 3600) ? Math.floor((now - (M0 - 6 * 3600)) / 3600) : 9;   // 9 = 03:00
+}
+
+/* scroll-spy for the bottom nav */
+function spy() {
+  const ids = ['verdict', 'map', 'towns', 'guide']; let on = 'verdict';
+  for (const id of ids) { const r = $(id).getBoundingClientRect(); if (r.top < window.innerHeight * 0.35) on = id; }
+  document.querySelectorAll('.navb').forEach(b => b.classList.toggle('on', b.dataset.go === on));
+}
+window.addEventListener('scroll', () => requestAnimationFrame(spy), { passive: true });
+
+/* ---------- service worker (announce updates, never auto-apply) ---------- */
+function initSW() {
+  if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    const offer = w => { const t = $('toast'); t.textContent = T('updReady'); t.hidden = false; t.onclick = () => { w.postMessage('skipWaiting'); }; };
+    if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+    reg.addEventListener('updatefound', () => { const w = reg.installing; if (!w) return; w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); }); });
+    let last = 0; const check = () => { if (Date.now() - last > 60000) { last = Date.now(); reg.update().catch(() => {}); } };
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    window.addEventListener('online', check);
+  }).catch(() => {});
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
+}
+
+/* ---------- boot ---------- */
+function boot() {
+  S.lang = lsGet(LSK.lang, null);
+  S.size = lsGet(LSK.size, 0); if (!(S.size >= 0 && S.size < SIZES.length)) S.size = 0;
+  S.model = lsGet(LSK.model, 'ecmwf'); if (!MODELS[S.model]) S.model = 'ecmwf';
+  S.layers = Object.assign(S.layers, lsGet(LSK.layers, {}));
+  setDefaultHour();
+  const cached = lsGet(cacheKey(S.model), null);
+  if (cached) { try { useRaw(cached); } catch (e) { S.D = null; } }
+  initMap();
+  renderAll();
+  if (!S.lang) { S.lang = null; showLangPicker(); }
+  refresh(false);
+  setInterval(() => { renderFresh(); if (S.D && !S.loading && !document.hidden && Date.now() - S.D.at > AUTO_MIN * 60000) refresh(true); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && S.D && Date.now() - S.D.at > AUTO_MIN * 60000) refresh(true); });
+  initSW(); spy();
+}
+boot();
+</script>
+</body>
+</html>
