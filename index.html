@@ -339,7 +339,7 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
    All times are Malaysia Standard Time (UTC+8, no DST): data is fetched in GMT
    as unixtime and shifted by a fixed +8 h, so the device clock never matters.
    ========================================================================== */
-const VERSION = 'ssw-20260925-22';
+const VERSION = 'ssw-20260925-23';
 const MYT = 8 * 3600;
 const APP_URL = 'https://stanleywoosweeleong.github.io/SumatraSquall/';   // what the QR code and the WhatsApp message point to
 const LSK = { lang:'ssw.lang', size:'ssw.size', model:'ssw.model', layers:'ssw.layers2', strength:'ssw.strength', home:'ssw.home', homeCache:'ssw.homecache.', cache:'ssw.cache3.' };
@@ -2024,10 +2024,14 @@ function setHrp(f) {
 
 /* ---------- live squall detector: runtime ---------- */
 const LIVE = { state: null, res: null, mv: null, err: null, rTs: null, hTs: null, at: 0, busy: false, layer: null };
-async function imgPixels(url) {
+async function imgPixels(url, retry = true) {
   const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 20000);
   try {
-    const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw new Error('HTTP ' + r.status);
+    // cache:'no-store' — never reuse the map's cached <img> copy, which was fetched without CORS headers
+    let r;
+    try { r = await fetch(url, { signal: ctl.signal, mode: 'cors', credentials: 'omit', cache: 'no-store' }); }
+    catch (e) { if (retry && e.name !== 'AbortError') { clearTimeout(tm); await new Promise(res => setTimeout(res, 1500)); return imgPixels(url, false); } throw e; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
     const bm = await createImageBitmap(await r.blob());
     const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(bm.width, bm.height) : Object.assign(document.createElement('canvas'), { width: bm.width, height: bm.height });
     const g = c.getContext('2d'); g.drawImage(bm, 0, 0);
@@ -2077,7 +2081,7 @@ async function runDetector() {
     const hLast = hr[hr.length - 1] || null, hOld = hLast && tnow - hLast.ts > DET.hrpMaxMin * 60;
     const hNow = hOld ? null : hLast;
     const hPast = hNow ? hr.slice().reverse().find(f => hNow.ts - f.ts >= DET.lookMin * 60 - 300) || null : null;
-    if (!rNow && !hNow) throw new Error(rOld || hOld ? T('lvStale') : (N.err || 'no radar or satellite pictures'));
+    if (!rNow && !hNow) throw Object.assign(new Error(N.err || 'no radar or satellite pictures'), rOld || hOld ? { key: 'lvStale' } : {});
     PIXCACHE.clear();
     const now = await buildGrid(rNow, hNow, bb);
     let mv = null, baseTs = null, why = null;
@@ -2091,14 +2095,14 @@ async function runDetector() {
       if (!baseTs) baseTs = c0.radarShare >= 0.5 && rNow ? rNow.ts : hNow ? hNow.ts : rNow ? rNow.ts : null;
     }
     const notes = [];
-    if (c0 && c0.isLine && !mv && why === 'mixed') notes.push(T('lvMixed'));
-    if (c0 && c0.isLine && !mv && why === 'coverage') notes.push(T('lvCovChange'));
-    if (rOld) notes.push(T('lvRadarOld', Math.round((tnow - rLast.ts) / 60)));
-    else if (now.rErr) notes.push(T('lvRadarFail', now.rErr));
-    if (hOld) notes.push(T('lvHrpOld', Math.round((tnow - hLast.ts) / 60)));
-    Object.assign(LIVE, { res: now.res, mv, notes, err: now.rErr && !hNow ? now.rErr : null, rTs: rNow && !now.rErr ? rNow.ts : null, hTs: hNow ? hNow.ts : null, baseTs, at: Date.now() });
+    if (c0 && c0.isLine && !mv && why === 'mixed') notes.push(['lvMixed']);
+    if (c0 && c0.isLine && !mv && why === 'coverage') notes.push(['lvCovChange']);
+    if (rOld) notes.push(['lvRadarOld', Math.round((tnow - rLast.ts) / 60)]);
+    else if (now.rErr) notes.push(['lvRadarFail', now.rErr]);
+    if (hOld) notes.push(['lvHrpOld', Math.round((tnow - hLast.ts) / 60)]);
+    Object.assign(LIVE, { res: now.res, mv, notes, errKey: null, err: now.rErr && !hNow ? now.rErr : null, rTs: rNow && !now.rErr ? rNow.ts : null, hTs: hNow ? hNow.ts : null, baseTs, at: Date.now() });
     LIVE.state = liveState(now.res, mv);
-  } catch (e) { Object.assign(LIVE, { state: 'nodata', err: e.message || String(e), res: null, mv: null, at: Date.now() }); }
+  } catch (e) { Object.assign(LIVE, { state: 'nodata', err: e.message || String(e), errKey: e.key || null, notes: [], res: null, mv: null, at: Date.now() }); }
   LIVE.busy = false;
   renderLive(); drawLiveLine();
 }
@@ -2113,7 +2117,7 @@ function renderLive() {
   const c = LIVE.res && LIVE.res.cluster, h = mytParts(nowSec()).h, squallHours = h >= 22 || h < 11;
   const nm = squallHours ? T('nmSquall') : T('nmBand');
   let html = `<div class="lvstate">${esc(T('lvState')[st])}</div><p class="vreason">`;
-  if (st === 'nodata') html += esc(LIVE.expired ? T('lvExpired') : T('lvNoData', LIVE.err || '—'));
+  if (st === 'nodata') html += esc(LIVE.expired ? T('lvExpired') : T('lvNoData', LIVE.errKey ? T(LIVE.errKey) : (LIVE.err || '—')));
   else if (st === 'clear') html += esc(T('lvClear'));
   else if (st === 'clearPart') html += esc(T('lvClearPart', Math.round(LIVE.res.covFrac * 100), LIVE.res.unseen.map(k => T('sect')[k]).join(S.lang === 'zh' ? '、' : ', ')));
   else if (st === 'scattered') html += esc(T('lvScattered'));
@@ -2140,7 +2144,7 @@ function renderLive() {
   if (LIVE.rTs) src.push(T('lvSrcR', hhmm(LIVE.rTs)));
   if (LIVE.hTs) src.push(T('lvSrcH', hhmm(LIVE.hTs)));
   if (src.length) html += `<div class="lvsmall">${esc(T('lvSrc', src.join(S.lang === 'zh' ? '、' : ', ')))}${LIVE.res ? ' ' + esc(T('lvCov', Math.round(LIVE.res.covFrac * 100))) : ''}</div>`;
-  if (LIVE.notes && LIVE.notes.length && st !== 'nodata') html += `<div class="lvsmall"><b>${esc(LIVE.notes.join(' '))}</b></div>`;
+  if (LIVE.notes && LIVE.notes.length && st !== 'nodata') html += `<div class="lvsmall"><b>${esc(LIVE.notes.map(n => T(...n)).join(' '))}</b></div>`;
   html += `<div class="lvsmall">${esc(T('lvNote'))}</div>`;
   body.innerHTML = html;
 }
