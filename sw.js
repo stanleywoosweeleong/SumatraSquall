@@ -1,5 +1,5 @@
 /* Sumatra Squall Watch — service worker. CACHE must match VERSION in index.html. */
-const CACHE = 'ssw-20260924-03';
+const CACHE = 'ssw-20260924-04';
 const TILES = 'ssw-tiles';
 const SHELL = ['./', './index.html', './manifest.json', './icon.svg', './icon-192.png', './icon-512.png'];
 const CDN = ['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'];
@@ -38,5 +38,5 @@ self.addEventListener('fetch', e => {
   if (url.origin === self.location.origin) { e.respondWith(networkFirst(req, 2000)); return; }
   if (url.hostname === 'cdnjs.cloudflare.com') { e.respondWith(cacheFirst(req, CACHE)); return; }
   if (url.hostname.endsWith('basemaps.cartocdn.com')) { e.respondWith(cacheFirst(req, TILES)); return; }
-  // Open-Meteo, JMA Himawari and NEA radar: always live — the app keeps its own timestamped model cache
+  // Open-Meteo and JMA Himawari tiles: always live — the app keeps its own timestamped model cache
 });
