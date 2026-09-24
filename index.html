@@ -93,6 +93,8 @@ ul.adv li::before{content:"";position:absolute;left:8px;top:.62em;width:9px;heig
 .scell svg{width:100%;max-width:22px;height:22px;margin-top:3px}
 .scell .hh{font-size:.82rem;font-weight:800;height:1.25em;margin-bottom:3px;white-space:nowrap;overflow:visible;font-variant-numeric:tabular-nums}
 .stripkey{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.92rem;align-items:center;margin-top:6px}
+.akey{width:26px;height:26px;vertical-align:middle;margin:0 2px 0 6px}
+.akeyrow{flex-basis:100%;line-height:2}
 .sw{display:inline-block;width:18px;height:14px;border:1px solid #9fb2bf;vertical-align:-2px;margin-right:4px;border-radius:2px}
 
 /* ingredients */
@@ -134,7 +136,9 @@ details.fold[open]>summary::before{transform:rotate(90deg) translate(3px,3px)}
 .ctl{display:grid;gap:10px;margin:10px 0}
 .slwrap{display:flex;align-items:center;gap:10px}
 .slwrap input[type=range]{flex:1;height:36px;accent-color:var(--sea)}
-.sltime{min-width:8.5em;font-weight:800;font-variant-numeric:tabular-nums}
+.sltime{min-width:9.5em;font-weight:800;font-variant-numeric:tabular-nums}
+.grp{border:1px solid var(--line);border-radius:5px;padding:8px 10px 10px;display:grid;gap:8px;background:#f7fafb}
+.grplab{font-weight:800}
 .wread{font-weight:700;background:var(--sea-l);border-left:6px solid var(--sea);border-radius:4px;padding:8px 10px;line-height:1.5}
 .wread p{margin:0}
 .wread p+p{margin-top:4px}
@@ -164,6 +168,7 @@ details.fold[open]>summary::before{transform:rotate(90deg) translate(3px,3px)}
 .tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:2px 12px;margin-top:3px;font-variant-numeric:tabular-nums}
 .tgrid span{color:var(--ink2)}
 .tgrid b{font-weight:700;color:var(--ink)}
+.gcount{font-weight:700;margin:4px 0 2px}
 .enote{background:var(--sea-l);border-radius:4px;padding:8px 10px;margin:6px 0}
 
 /* guide */
@@ -233,18 +238,20 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
     <p class="sub" id="mapSub"></p>
     <div class="ctl">
       <div class="seg" id="segView"></div>
-      <div class="seg" id="segLayers"></div>
-      <div class="seg" id="segStrength"></div>
-      <div class="slwrap"><input type="range" id="slider" min="0" max="18" step="1" value="9" aria-label="hour"><div class="sltime" id="slTime"></div></div>
-      <div class="sub" id="slNote"></div>
-      <div class="wread" id="windRead" hidden></div>
-      <div class="seg" id="segPlay"></div>
+      <div class="grp"><div class="grplab" id="grpLive"></div>
+        <div class="seg" id="segLive"></div>
+        <div class="seg" id="segStrength"></div>
+        <div class="seg" id="segPlay"></div></div>
+      <div class="grp"><div class="grplab" id="grpFcst"></div>
+        <div class="seg" id="segFcst"></div>
+        <div class="slwrap"><input type="range" id="slider" min="0" max="18" step="1" value="9" aria-label="hour"><div class="sltime" id="slTime"></div></div>
+        <div class="sub" id="slNote"></div>
+        <div class="wread" id="windRead" hidden></div></div>
     </div>
     <div id="mapwrap"><div id="mapbox"></div><div class="rail rail-l" aria-hidden="true"></div><div class="rail rail-r" aria-hidden="true"></div><div id="mapTimes"></div><button id="fsExit" hidden></button></div>
     <div class="legend" id="legend"></div>
     <div class="lsrc" id="liveSrc"></div>
-    <div class="ctl"><div class="seg" id="segMark"></div><div class="markhint" id="markHint" hidden></div></div>
-    <div class="eta" id="eta" hidden></div>
+    
   </section>
 
   <section class="blk" id="towns">
@@ -284,7 +291,7 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
    All times are Malaysia Standard Time (UTC+8, no DST): data is fetched in GMT
    as unixtime and shifted by a fixed +8 h, so the device clock never matters.
    ========================================================================== */
-const VERSION = 'ssw-20260924-11';
+const VERSION = 'ssw-20260924-15';
 const MYT = 8 * 3600;
 const LSK = { lang:'ssw.lang', size:'ssw.size', model:'ssw.model', layers:'ssw.layers2', strength:'ssw.strength', cache:'ssw.cache.' };
 const MIN_RELOAD_MIN = 30;   // no re-fetch sooner than this (Open-Meteo is a shared free service)
@@ -397,23 +404,6 @@ function lagFromAxis(lat, lon, st) {
   const along = (n.P[0] - n.Q[0]) * pu + (n.P[1] - n.Q[1]) * pv;   // km
   if (along <= 0) return { upwind: true };
   return { h: along / (st.spd * 3.6), km: along };
-}
-
-/** ETA of a marked squall line (two lat/lon ends) moving with (u,v) m/s to a place */
-function etaFromLine(a, b, lat, lon, st) {
-  const A = xy(a[0], a[1]), B = xy(b[0], b[1]), P = xy(lat, lon);
-  const d = [B[0] - A[0], B[1] - A[1]], len = Math.hypot(d[0], d[1]);
-  if (len < 1) return null;
-  let n = [-d[1] / len, d[0] / len];
-  let dist = (P[0] - A[0]) * n[0] + (P[1] - A[1]) * n[1];
-  if (dist < 0) { n = [-n[0], -n[1]]; dist = -dist; }
-  const t = ((P[0] - A[0]) * d[0] + (P[1] - A[1]) * d[1]) / (len * len);
-  const beyond = t < -0.25 || t > 1.25;
-  if (dist < 3) return { now: true, beyond };
-  if (!st) return { nosteer: true, beyond };
-  const vn = st.u * n[0] + st.v * n[1];                          // m/s toward the place
-  if (vn < 1) return { away: true, beyond, dist };
-  return { h: dist / (vn * 3.6), dist, beyond, vn };
 }
 
 /** grid convergence (−divergence, s^-1) at inner point k, hour h, from 10 m winds (km/h in data) */
@@ -720,8 +710,8 @@ zh: {
     '午后局部雷阵雨是另一回事——本软件只看凌晨到上午的飑线。'],
   winDefault:'0–10 时',
   stripHead:'海峡逐小时（18:00 → 12:00 MYT）',
-  stripSub:'色块 = 模型在海峡上 ≥2 mm/h 降雨的格点比例；箭头 = 引导风，指向风暴被推去的方向；红色底边 = 西海岸阵风 ≥45 km/h。点任一小时，可在地图上打开。',
-  keyNone:'无雨', keySome:'零星', keyBand:'成片', keyGust:'阵风 ≥45', keyArrowGood:'推向马来西亚', keyArrowBad:'其他方向',
+  stripSub:'色块 = 模型在海峡上 ≥2 mm/h 降雨的格点比例；箭头 = 引导风，指向风暴被推去的方向（红 = 推向马来西亚，淡色虚线 = 太弱，深灰 = 方向不对）；红色底边 = 西海岸阵风 ≥45 km/h。点任一小时，可在地图上打开。',
+  keyNone:'无雨', keySome:'零星', keyBand:'成片', keyGust:'阵风 ≥45', keyArrowHow:'箭头指向 = 风暴被推去的方向，越长风越强：', arrowKind:{good:'推向马来西亚',weak:'太弱，推不动',wrong:'方向不对'}, arrowTip:(d,k,w)=>`引导风来自${d}，${k} km/h，${w}`,
   ingHead:'指数怎么算（展开看算式）',
   ing:{steer:'引导风（850 与 700 百帕平均）',cape:'不稳定度 CAPE',conv:'海峡低层辐合',rain:'模型海峡降雨',gust:'西海岸阵风',season:'季节'},
   rawSteer:(f,dir,ms,k)=>`来自 ${f}°（${dir}），${ms} m/s（约 ${k} km/h），00–09 时海峡平均`,
@@ -740,7 +730,13 @@ zh: {
   mapHead:'地图', mapSub:'新加坡气象局雷达（覆盖海峡中南部）、日本气象厅向日葵 9 号红外云图和「强雨域推定」都是实时观测；风、雨、辐合是所选那一夜的模型图，用下面的滑杆逐小时查看。',
   views:{pen:'半岛',east:'东马',all:'全马'},
   ly:{nea:'新加坡雷达（实时）',sat:'向日葵红外（实时）',hrp:'强雨域推定（实时）',w850:'引导风 850',w10:'地面风',rain:'模型雨量',conv:'辐合',towns:'城镇'},
-  slNote:'滑杆只移动模型图层；卫星图层始终显示最新观测。',
+  slNote:'拖动滑杆，看所选那一夜 18:00 到次日 12:00 的模型预报：风箭头、雨和辐合会逐小时变化，下面的文字也会跟着说明。',
+  grpLive:'实况（最新观测，不随滑杆变化）', grpFcst:'预报（模型，随滑杆逐小时变化）',
+  slAt:(p,hh)=>`${p.mo}月${p.d}日 ${hh}`,
+  wrRain:(hh,p,x)=>`模型雨量 ${hh}：海峡上 ${p}% 的格点有 ≥2 mm/h 的雨，最大 ${x} mm/h。`,
+  wrConvUp:(hh,x)=>`辐合 ${hh}：海峡平均 +${x} ×10⁻⁵ s⁻¹——低层空气在海上汇合、被抬升，有利雷暴形成。`,
+  wrConvDown:(hh,x)=>`辐合 ${hh}：海峡平均 −${x} ×10⁻⁵ s⁻¹——空气向外散开，不利雷暴形成。`,
+  wrAuto:'已自动打开「引导风 850」和「模型雨量」，让滑杆有东西可看。',
   wrSteer:(hh,d,k,v)=>`引导风 ${hh}（海峡平均，850–700 百帕）：来自${d}，约 ${k} km/h——${v}。`,
   wrGood:'会把海峡上形成的风暴推向马来西亚', wrWeak:'太弱，风暴几乎推不动', wrWrong:'这个方向不会把风暴推向马来西亚',
   wrSurf:(hh,d,k)=>`地面风 ${hh}（海峡平均）：来自${d}，约 ${k} km/h。`,
@@ -752,17 +748,14 @@ zh: {
   lgNea:'新加坡雷达：颜色由浅到深 = 雨由小到大（完整图例见 weather.gov.sg）', lgBox:'白色点线框 = 新加坡雷达覆盖范围，框外空白不代表没有雨',
   satNote:'红外图看的是云顶温度，不是地面雨量：越白（越冷）的云顶越高、对流越强。飑线是一条南北向的冷云带；云砧会向外扩散几十公里，所以位置只是近似。',
   hrpTime:t=>`强雨域推定 ${t} MYT`, hrpGive:'强雨域推定暂时读取不到。', lgHrp:'强雨域推定 = JMA 用卫星估算的强降雨区，颜色越深越强（完整图例见 JMA 页面）',
-  lgRain:'模型雨量 mm/h', lgWind:'风速 km/h', lgConv:'红 = 辐合（空气被抬升）、蓝 = 辐散', lgAxis:'虚线 = 海峡中线',
+  lgRain:'模型雨量 mm/h', lgWind:'风速 km/h', lgConv:'红 = 辐合（空气被抬升）、蓝 = 辐散', lgAxis:'青色虚线 = 海峡中线（固定的参考线，不是飑线）', lgLive:'红色粗线 + 箭头 = 软件自动认出的雷雨带和移动方向（检测到时才出现）',
   mapErr:'地图程序库未能载入——首次使用需要联网一次。其余部分照常可用。',
-  markBtn:'标记飑线', markClear:'清除标记', markHint1:'在雷达或卫星图上点一下雨带的一端', markHint2:'再点雨带的另一端',
-  etaHead:(k,dir,hh)=>`按 ${hh} 的引导风（约 ${k} km/h，吹向${dir}）估算到达时间`,
-  etaNow:'正在经过', etaIn:(h,t)=>`约 ${h} 小时后（${t}）`, etaAway:'不会移向这里', etaLong:'6 小时以上——引导风太弱，飑线多半撑不到这里', etaBeyond:'（在所标雨带两端之外）', etaNoSteer:'没有引导风数据，无法估算',
-  etaNote:'假设云带跟着 850–700 百帕风移动，这只是粗估；飑线常比平均风更快。以卫星实况为准。',
+  etaIn:(d,t)=>`约 ${d}后（${t}）`, etaLong:'6 小时以上——引导风太弱，飑线多半撑不到这里',
   townsHead:'城镇', townsSub:'所选那一夜 00–10 时（MYT，飑线时段）的模型信号。「信号」= 某小时 ≥2 mm/h 雨或阵风 ≥45 km/h。',
   grp:{west:'半岛西海岸——飑线的主要受影响区',inland:'内陆与东海岸——飑线越过蒂迪旺沙山脉后通常减弱',east:'东马（沙巴、砂拉越）'},
   eastNote:'苏门答腊飑线到不了东马——中间隔着约 700 km 的南中国海。这里列出的是模型对当地同一时段的雷雨信号，属于东马本身的夜间/清晨雷暴（多在海上形成、早上移上岸），不是苏门答腊飑线。',
   tFirst:'首个信号', tGust:'最大阵风', tRain:'00–10 时雨量', tLag:'离海峡中线', tSig:'有信号', tQuiet:'无信号',
-  lagH:h=>`中线过后约 ${h} 小时`, lagUp:'在中线上风一侧', lagLong:'中线过后 6 小时以上（引导风太弱，多半撑不到）', lagNa:'—',
+  lagH:d=>`中线过后约 ${d}`, dur:h=>h < 1 ? `${Math.max(5, Math.round(h * 12) * 5)} 分钟` : `${(Math.round(h * 10) / 10).toFixed(1)} 小时`, grpCount:(n,t)=> n ? `${t} 个城镇中 ${n} 个有信号（排在最前，按时间先后）` : `${t} 个城镇都没有信号`, lagUp:'在中线上风一侧', lagLong:'中线过后 6 小时以上（引导风太弱，多半撑不到）', lagNa:'—',
   guideHead:'说明',
   gWhat:'苏门答腊飑线是什么',
   gWhatBody:'一条南北向排开、长达数百公里的雷暴带。它多在午夜后于苏门答腊东岸或马六甲海峡上空形成，被西南到西风推着向东移，凌晨到上午扫过半岛西海岸。来时往往先起一阵强风（常见 40–80 km/h），随后是大雨和雷电，通常一两个小时内就过去。',
@@ -781,7 +774,7 @@ zh: {
   gRadar:'新加坡雷达',
   gRadarBody:'大马本地雷达属于大马气象局，本软件不使用。新加坡国家环境局（NEA）通过 data.gov.sg 公开雷达图（以新加坡为中心，480 公里与 240 公里范围，每 5 分钟一张），采用新加坡开放数据许可。480 公里范围大约到霹雳南部和对岸的苏门答腊东岸，所以看得到海峡中南部飑线的形成和移动；北部（吉打、槟城、霹雳北部）超出范围，只能靠卫星。离雷达越远，雷达波束越高，远处较低的雨可能看不到。',
   gHow:'怎么用这个软件',
-  gHowSteps:['傍晚看「今晚」：配置等级和建议就是默认做法。','指数的每一分都能展开看算式和门槛。','不必自己看雷达：页面最上方的「现在的海峡」每 5 分钟自动读雷达，发现雷雨带就写出位置、速度和各城镇的到达时间，地图上用红线画出。想自己核对时，可在地图上用「标记飑线」。','「城镇」列出各地模型最早信号的时间和最大阵风。'],
+  gHowSteps:['傍晚看「今晚」：配置等级和建议就是默认做法。','指数的每一分都能展开看算式和门槛。','不必自己看雷达：页面最上方的「现在的海峡」每 5 分钟自动读雷达，发现雷雨带就写出位置、速度和各城镇的到达时间，地图上用红色粗线画出。','「城镇」列出各地模型最早信号的时间和最大阵风。'],
   gLimits:'局限',
   gLimitsBody:'模型网格（ECMWF 9 km、GFS 约 25 km）太粗，画不出飑线本身，时间常差一两个小时，也可能完全漏掉或误报。指数只说明「条件是否齐备」。向日葵卫星图是实况（但只看得到云顶，不是雨量计），大马气象局是警告的权威。',
   gThr:'全部门槛一览',
@@ -857,8 +850,8 @@ en: {
     'Afternoon local thunderstorms are a separate matter — this app only looks at the pre-dawn to morning squall.'],
   winDefault:'00:00–10:00',
   stripHead:'The Strait, hour by hour (18:00 → 12:00 MYT)',
-  stripSub:'Colour = share of Strait points where the model rains ≥2 mm/h. Arrow = steering wind, pointing where storms are pushed. Red bottom edge = west-coast gust ≥45 km/h. Tap an hour to open it on the map.',
-  keyNone:'no rain', keySome:'scattered', keyBand:'banded', keyGust:'gust ≥45', keyArrowGood:'toward Malaysia', keyArrowBad:'other directions',
+  stripSub:'Colour = share of Strait points where the model rains ≥2 mm/h. Arrow = steering wind, pointing where storms are pushed (red = toward Malaysia, pale dashed = too weak, dark grey = wrong direction). Red bottom edge = west-coast gust ≥45 km/h. Tap an hour to open it on the map.',
+  keyNone:'no rain', keySome:'scattered', keyBand:'banded', keyGust:'gust ≥45', keyArrowHow:'The arrow points where storms are pushed; longer = stronger:', arrowKind:{good:'pushing toward Malaysia',weak:'too weak to push',wrong:'wrong direction'}, arrowTip:(d,k,w)=>`steering wind from the ${d}, ${k} km/h, ${w}`,
   ingHead:'How the index is computed (tap to see the arithmetic)',
   ing:{steer:'Steering wind (850 and 700 hPa mean)',cape:'Instability (CAPE)',conv:'Low-level convergence over the Strait',rain:'Model rain over the Strait',gust:'West-coast gusts',season:'Season'},
   rawSteer:(f,dir,ms,k)=>`From ${f}° (${dir}), ${ms} m/s (about ${k} km/h), Strait mean 00–09`,
@@ -877,7 +870,13 @@ en: {
   mapHead:'Map', mapSub:'Singapore radar (central and southern Strait), plus the JMA Himawari-9 infrared image and Heavy Rain Potential, are live observations. Wind, rain and convergence are the model for the chosen night — use the slider to step through the hours.',
   views:{pen:'Peninsula',east:'East Malaysia',all:'All Malaysia'},
   ly:{nea:'Singapore radar (live)',sat:'Himawari infrared (live)',hrp:'Heavy Rain Potential (live)',w850:'Steering wind 850',w10:'Surface wind',rain:'Model rain',conv:'Convergence',towns:'Towns'},
-  slNote:'The slider moves the model layers only; the satellite layers always show the latest observation.',
+  slNote:'Drag the slider to step through the model forecast for the chosen night, 18:00 to 12:00 next day: the wind arrows, rain and convergence change hour by hour, and the text below explains each hour.',
+  grpLive:'Live (latest observation — the slider does not change it)', grpFcst:'Forecast (model — changes hour by hour with the slider)',
+  slAt:(p,hh)=>`${p.d} ${MON_EN[p.mo-1]} ${hh}`,
+  wrRain:(hh,p,x)=>`Model rain at ${hh}: ${p}% of Strait points get ≥2 mm/h, up to ${x} mm/h.`,
+  wrConvUp:(hh,x)=>`Convergence at ${hh}: Strait mean +${x} ×10⁻⁵ s⁻¹ — low-level air meets over the sea and is lifted, which helps storms form.`,
+  wrConvDown:(hh,x)=>`Convergence at ${hh}: Strait mean −${x} ×10⁻⁵ s⁻¹ — the air is spreading out, which works against storms.`,
+  wrAuto:'"Steering wind 850" and "Model rain" were switched on so the slider has something to show.',
   wrSteer:(hh,d,k,v)=>`Steering wind at ${hh} (Strait mean, 850–700 hPa): from the ${d}, about ${k} km/h — ${v}.`,
   wrGood:'it will push storms that form over the Strait toward Malaysia', wrWeak:'too weak to move storms much', wrWrong:'this direction does not push storms toward Malaysia',
   wrSurf:(hh,d,k)=>`Surface wind at ${hh} (Strait mean): from the ${d}, about ${k} km/h.`,
@@ -889,17 +888,14 @@ en: {
   lgNea:'Singapore radar: light to dark = light to heavy rain (full legend on weather.gov.sg)', lgBox:'white dotted box = Singapore radar coverage; blank outside it does not mean dry',
   satNote:'Infrared shows cloud-top temperature, not rain at the ground: the whiter (colder) the top, the taller and stronger the storm. A squall line is a north–south band of cold tops; the anvil spreads tens of km, so positions are approximate.',
   hrpTime:t=>`Heavy Rain Potential ${t} MYT`, hrpGive:'Heavy Rain Potential is not available right now.', lgHrp:'Heavy Rain Potential = the JMA satellite estimate of heavy rain; darker = heavier (full legend on the JMA page)',
-  lgRain:'Model rain mm/h', lgWind:'Wind km/h', lgConv:'red = converging (air lifted), blue = diverging', lgAxis:'dashed = Strait mid-line',
+  lgRain:'Model rain mm/h', lgWind:'Wind km/h', lgConv:'red = converging (air lifted), blue = diverging', lgAxis:'cyan dashed = Strait mid-line (a fixed reference, not a squall line)', lgLive:'thick red line + arrow = storm band the app found and its direction (appears only when one is detected)',
   mapErr:'The map library did not load — it needs the internet once. Everything else still works.',
-  markBtn:'Mark squall line', markClear:'Clear mark', markHint1:'Tap one end of the rain band on the radar or satellite image', markHint2:'Now tap the other end',
-  etaHead:(k,dir,hh)=>`Arrival estimate using the ${hh} steering wind (about ${k} km/h, toward the ${dir})`,
-  etaNow:'passing now', etaIn:(h,t)=>`in about ${h} h (${t})`, etaAway:'not moving this way', etaLong:'more than 6 h — steering too weak; the line is unlikely to last that long', etaBeyond:' (beyond the marked ends)', etaNoSteer:'No steering-wind data — cannot estimate',
-  etaNote:'Assumes the band moves with the 850–700 hPa wind. A rough guide only; squall lines often run faster than the mean wind. Trust the satellite.',
+  etaIn:(d,t)=>`in about ${d} (${t})`, etaLong:'more than 6 h — steering too weak; the line is unlikely to last that long',
   townsHead:'Towns', townsSub:'Model signals for the chosen night, 00:00–10:00 MYT (the squall window). "Signal" = an hour with ≥2 mm/h rain or a gust ≥45 km/h.',
   grp:{west:'West coast of the Peninsula — where squall lines hit',inland:'Interior and east coast — squalls usually weaken after crossing the Titiwangsa range',east:'East Malaysia (Sabah, Sarawak)'},
   eastNote:'Sumatra squalls do not reach East Malaysia — about 700 km of South China Sea lies between. What is listed here is the model\'s local storm signal for the same hours: Borneo\'s own night and early-morning storms, which form offshore and can move ashore in the morning. They are not Sumatra squalls.',
   tFirst:'First signal', tGust:'Peak gust', tRain:'Rain 00–10', tLag:'From Strait mid-line', tSig:'Signal', tQuiet:'No signal',
-  lagH:h=>`about ${h} h after mid-line`, lagUp:'upwind of the mid-line', lagLong:'6+ h after the mid-line (steering too weak — unlikely to last)', lagNa:'—',
+  lagH:d=>`about ${d} after mid-line`, dur:h=>h < 1 ? `${Math.max(5, Math.round(h * 12) * 5)} min` : `${(Math.round(h * 10) / 10).toFixed(1)} h`, grpCount:(n,t)=> n ? `${n} of ${t} towns have a signal (listed first, earliest first)` : `None of the ${t} towns has a signal`, lagUp:'upwind of the mid-line', lagLong:'6+ h after the mid-line (steering too weak — unlikely to last)', lagNa:'—',
   guideHead:'Guide',
   gWhat:'What a Sumatra squall is',
   gWhatBody:'A north–south line of thunderstorms, often hundreds of kilometres long. It usually forms after midnight over Sumatra\'s east coast or the Strait of Malacca and is pushed east by south-westerly to westerly winds, sweeping the Peninsula\'s west coast between the small hours and mid-morning. It arrives with a sudden strong wind (commonly 40–80 km/h), then heavy rain and lightning, and usually passes within an hour or two.',
@@ -918,7 +914,7 @@ en: {
   gRadar:'Singapore radar',
   gRadarBody:'Malaysia\'s own radar belongs to MET Malaysia and is not used by this app. Singapore\'s National Environment Agency (NEA) publishes its radar images (centred on Singapore, 480 km and 240 km ranges, every 5 minutes) through data.gov.sg under the Singapore Open Data Licence. The 480 km range reaches roughly southern Perak and the Sumatra coast opposite, so it sees squall lines form and cross the central and southern Strait; the north (Kedah, Penang, northern Perak) is out of range and relies on the satellite. Far from the radar the beam is high, so distant low rain can be missed.',
   gHow:'How to use this app',
-  gHowSteps:['In the evening, read "Tonight": the level and the advice are the default plan.','Every point of the index can be opened to show the arithmetic and thresholds.','You do not need to read the radar yourself: "The Strait right now" at the top reads it every 5 minutes and, when it finds a storm band, gives its position, speed and arrival time for each town, and draws it in red on the map. To check it yourself, use "Mark squall line" on the map.','"Towns" lists each place\'s earliest model signal and peak gust.'],
+  gHowSteps:['In the evening, read "Tonight": the level and the advice are the default plan.','Every point of the index can be opened to show the arithmetic and thresholds.','You do not need to read the radar yourself: "The Strait right now" at the top reads it every 5 minutes and, when it finds a storm band, gives its position, speed and arrival time for each town, and draws it as a thick red line on the map.','"Towns" lists each place\'s earliest model signal and peak gust.'],
   gLimits:'Limits',
   gLimitsBody:'Model grids (ECMWF 9 km, GFS about 25 km) are too coarse to draw the squall line itself; timing is often an hour or two off, and a squall can be missed or falsely shown. The index only says whether the ingredients are in place. The Himawari satellite shows what is happening, though it sees cloud tops, not rain gauges; MET Malaysia is the authority for warnings.',
   gThr:'All thresholds',
@@ -994,8 +990,8 @@ ms: {
     'Ribut petir tempatan waktu petang ialah perkara lain — perisian ini hanya melihat garis badai subuh hingga pagi.'],
   winDefault:'00:00–10:00',
   stripHead:'Selat, jam demi jam (18:00 → 12:00 MYT)',
-  stripSub:'Warna = bahagian titik Selat yang model beri hujan ≥2 mm/j. Anak panah = angin pemandu, menunjuk ke mana ribut ditolak. Tepi bawah merah = tiupan pantai barat ≥45 km/j. Ketik mana-mana jam untuk membukanya di peta.',
-  keyNone:'tiada hujan', keySome:'bertaburan', keyBand:'berjalur', keyGust:'tiupan ≥45', keyArrowGood:'ke arah Malaysia', keyArrowBad:'arah lain',
+  stripSub:'Warna = bahagian titik Selat yang model beri hujan ≥2 mm/j. Anak panah = angin pemandu, menunjuk ke mana ribut ditolak (merah = ke arah Malaysia, pucat bergaris putus = terlalu lemah, kelabu gelap = arah salah). Tepi bawah merah = tiupan pantai barat ≥45 km/j. Ketik mana-mana jam untuk membukanya di peta.',
+  keyNone:'tiada hujan', keySome:'bertaburan', keyBand:'berjalur', keyGust:'tiupan ≥45', keyArrowHow:'Anak panah menunjuk ke mana ribut ditolak; lebih panjang = lebih kuat:', arrowKind:{good:'menolak ke arah Malaysia',weak:'terlalu lemah untuk menolak',wrong:'arah salah'}, arrowTip:(d,k,w)=>`angin pemandu dari ${d}, ${k} km/j, ${w}`,
   ingHead:'Cara indeks dikira (ketik untuk lihat kiraan)',
   ing:{steer:'Angin pemandu (purata 850 dan 700 hPa)',cape:'Ketidakstabilan (CAPE)',conv:'Penumpuan angin aras rendah di Selat',rain:'Hujan model di atas Selat',gust:'Tiupan kencang pantai barat',season:'Musim'},
   rawSteer:(f,dir,ms,k)=>`Dari ${f}° (${dir}), ${ms} m/s (kira-kira ${k} km/j), purata Selat 00–09`,
@@ -1014,7 +1010,13 @@ ms: {
   mapHead:'Peta', mapSub:'Radar Singapura (Selat tengah dan selatan), serta imej inframerah Himawari-9 JMA dan Anggaran Hujan Lebat, ialah cerapan langsung. Angin, hujan dan penumpuan ialah model untuk malam yang dipilih — guna gelangsar untuk melihat jam demi jam.',
   views:{pen:'Semenanjung',east:'Malaysia Timur',all:'Seluruh Malaysia'},
   ly:{nea:'Radar Singapura (langsung)',sat:'Inframerah Himawari (langsung)',hrp:'Anggaran Hujan Lebat (langsung)',w850:'Angin pemandu 850',w10:'Angin permukaan',rain:'Hujan model',conv:'Penumpuan',towns:'Bandar'},
-  slNote:'Gelangsar hanya menggerakkan lapisan model; lapisan satelit sentiasa menunjukkan cerapan terkini.',
+  slNote:'Seret gelangsar untuk melihat ramalan model bagi malam yang dipilih, 18:00 hingga 12:00 keesokan hari: anak panah angin, hujan dan penumpuan berubah jam demi jam, dan teks di bawah menerangkan setiap jam.',
+  grpLive:'Langsung (cerapan terkini — gelangsar tidak mengubahnya)', grpFcst:'Ramalan (model — berubah jam demi jam dengan gelangsar)',
+  slAt:(p,hh)=>`${p.d} ${MON_MS[p.mo-1]} ${hh}`,
+  wrRain:(hh,p,x)=>`Hujan model ${hh}: ${p}% titik Selat menerima ≥2 mm/j, sehingga ${x} mm/j.`,
+  wrConvUp:(hh,x)=>`Penumpuan ${hh}: purata Selat +${x} ×10⁻⁵ s⁻¹ — udara aras rendah bertemu di atas laut dan terangkat, membantu ribut terbentuk.`,
+  wrConvDown:(hh,x)=>`Penumpuan ${hh}: purata Selat −${x} ×10⁻⁵ s⁻¹ — udara mencapah, tidak membantu ribut.`,
+  wrAuto:'"Angin pemandu 850" dan "Hujan model" dihidupkan supaya gelangsar ada sesuatu untuk ditunjukkan.',
   wrSteer:(hh,d,k,v)=>`Angin pemandu ${hh} (purata Selat, 850–700 hPa): dari ${d}, kira-kira ${k} km/j — ${v}.`,
   wrGood:'ia akan menolak ribut yang terbentuk di atas Selat ke arah Malaysia', wrWeak:'terlalu lemah untuk menggerakkan ribut', wrWrong:'arah ini tidak menolak ribut ke arah Malaysia',
   wrSurf:(hh,d,k)=>`Angin permukaan ${hh} (purata Selat): dari ${d}, kira-kira ${k} km/j.`,
@@ -1026,17 +1028,14 @@ ms: {
   lgNea:'Radar Singapura: cerah ke gelap = hujan ringan ke lebat (petunjuk penuh di weather.gov.sg)', lgBox:'kotak titik putih = liputan radar Singapura; kosong di luarnya tidak bermaksud kering',
   satNote:'Inframerah menunjukkan suhu puncak awan, bukan hujan di tanah: makin putih (sejuk) puncaknya, makin tinggi dan kuat ribut itu. Garis badai ialah jalur utara–selatan puncak sejuk; andas awan merebak berpuluh km, jadi kedudukan hanya anggaran.',
   hrpTime:t=>`Anggaran Hujan Lebat ${t} MYT`, hrpGive:'Anggaran Hujan Lebat tiada buat masa ini.', lgHrp:'Anggaran Hujan Lebat = anggaran kawasan hujan lebat oleh JMA daripada satelit; makin gelap makin lebat (petunjuk penuh di laman JMA)',
-  lgRain:'Hujan model mm/j', lgWind:'Angin km/j', lgConv:'merah = menumpu (udara diangkat), biru = mencapah', lgAxis:'garis putus = garis tengah Selat',
+  lgRain:'Hujan model mm/j', lgWind:'Angin km/j', lgConv:'merah = menumpu (udara diangkat), biru = mencapah', lgAxis:'garis putus sian = garis tengah Selat (rujukan tetap, bukan garis badai)', lgLive:'garis merah tebal + anak panah = jalur ribut yang dikesan perisian dan arahnya (muncul hanya apabila dikesan)',
   mapErr:'Pustaka peta gagal dimuat — perlukan internet sekali. Bahagian lain masih berfungsi.',
-  markBtn:'Tanda garis badai', markClear:'Padam tanda', markHint1:'Ketik satu hujung jalur hujan pada radar atau imej satelit', markHint2:'Sekarang ketik hujung yang satu lagi',
-  etaHead:(k,dir,hh)=>`Anggaran masa tiba guna angin pemandu ${hh} (kira-kira ${k} km/j, ke arah ${dir})`,
-  etaNow:'sedang melintas', etaIn:(h,t)=>`dalam kira-kira ${h} jam (${t})`, etaAway:'tidak bergerak ke sini', etaLong:'lebih 6 jam — angin pemandu terlalu lemah; garis badai mungkin tidak bertahan selama itu', etaBeyond:' (di luar hujung yang ditanda)', etaNoSteer:'Tiada data angin pemandu — tidak dapat menganggar',
-  etaNote:'Andaian: jalur bergerak bersama angin 850–700 hPa. Panduan kasar sahaja; garis badai selalunya lebih laju daripada angin purata. Percayai satelit.',
+  etaIn:(d,t)=>`dalam kira-kira ${d} (${t})`, etaLong:'lebih 6 jam — angin pemandu terlalu lemah; garis badai mungkin tidak bertahan selama itu',
   townsHead:'Bandar', townsSub:'Isyarat model untuk malam dipilih, 00:00–10:00 MYT (tempoh garis badai). "Isyarat" = jam dengan hujan ≥2 mm/j atau tiupan ≥45 km/j.',
   grp:{west:'Pantai barat Semenanjung — kawasan utama garis badai',inland:'Pedalaman dan pantai timur — garis badai biasanya lemah selepas melintasi Banjaran Titiwangsa',east:'Malaysia Timur (Sabah, Sarawak)'},
   eastNote:'Garis badai Sumatera tidak sampai ke Malaysia Timur — kira-kira 700 km Laut China Selatan memisahkannya. Yang disenaraikan di sini ialah isyarat ribut tempatan model untuk jam yang sama: ribut malam dan awal pagi Borneo sendiri, yang terbentuk di luar pantai dan boleh bergerak ke darat pada waktu pagi. Ia bukan garis badai Sumatera.',
   tFirst:'Isyarat pertama', tGust:'Tiupan maks', tRain:'Hujan 00–10', tLag:'Dari garis tengah Selat', tSig:'Ada isyarat', tQuiet:'Tiada isyarat',
-  lagH:h=>`kira-kira ${h} jam selepas garis tengah`, lagUp:'di sebelah angin garis tengah', lagLong:'6+ jam selepas garis tengah (angin pemandu terlalu lemah — mungkin tidak bertahan)', lagNa:'—',
+  lagH:d=>`kira-kira ${d} selepas garis tengah`, dur:h=>h < 1 ? `${Math.max(5, Math.round(h * 12) * 5)} minit` : `${(Math.round(h * 10) / 10).toFixed(1)} jam`, grpCount:(n,t)=> n ? `${n} daripada ${t} bandar ada isyarat (disenarai dahulu, paling awal dahulu)` : `Tiada isyarat di ${t} bandar`, lagUp:'di sebelah angin garis tengah', lagLong:'6+ jam selepas garis tengah (angin pemandu terlalu lemah — mungkin tidak bertahan)', lagNa:'—',
   guideHead:'Panduan',
   gWhat:'Apa itu garis badai Sumatera',
   gWhatBody:'Satu barisan ribut petir utara–selatan, selalunya ratusan kilometer panjang. Ia biasanya terbentuk selepas tengah malam di pantai timur Sumatera atau di atas Selat Melaka dan ditolak ke timur oleh angin barat daya hingga barat, melanda pantai barat Semenanjung antara awal pagi hingga pertengahan pagi. Ia tiba dengan angin kencang mengejut (biasanya 40–80 km/j), diikuti hujan lebat dan kilat, dan biasanya berlalu dalam sejam dua.',
@@ -1055,7 +1054,7 @@ ms: {
   gRadar:'Radar Singapura',
   gRadarBody:'Radar Malaysia sendiri milik MET Malaysia dan tidak digunakan perisian ini. Agensi Alam Sekitar Kebangsaan Singapura (NEA) menerbitkan imej radarnya (berpusat di Singapura, julat 480 km dan 240 km, setiap 5 minit) melalui data.gov.sg di bawah Lesen Data Terbuka Singapura. Julat 480 km sampai kira-kira ke selatan Perak dan pantai Sumatera di seberang, jadi ia melihat garis badai terbentuk dan melintasi Selat tengah dan selatan; utara (Kedah, Pulau Pinang, utara Perak) di luar julat dan bergantung pada satelit. Jauh dari radar, alurnya tinggi, jadi hujan rendah yang jauh mungkin terlepas.',
   gHow:'Cara menggunakan perisian ini',
-  gHowSteps:['Pada waktu petang, baca "Malam ini": tahap dan nasihat ialah pelan asas.','Setiap markah indeks boleh dibuka untuk melihat kiraan dan ambang.','Anda tidak perlu membaca radar sendiri: "Selat sekarang" di bahagian atas membacanya setiap 5 minit dan, apabila menemui jalur ribut, memberi kedudukan, kelajuan dan masa tiba bagi setiap bandar, serta melukisnya dengan warna merah pada peta. Untuk menyemak sendiri, guna "Tanda garis badai" pada peta.','"Bandar" menyenaraikan isyarat model terawal dan tiupan maksimum setiap tempat.'],
+  gHowSteps:['Pada waktu petang, baca "Malam ini": tahap dan nasihat ialah pelan asas.','Setiap markah indeks boleh dibuka untuk melihat kiraan dan ambang.','Anda tidak perlu membaca radar sendiri: "Selat sekarang" di bahagian atas membacanya setiap 5 minit dan, apabila menemui jalur ribut, memberi kedudukan, kelajuan dan masa tiba bagi setiap bandar, serta melukisnya sebagai garis merah tebal pada peta.','"Bandar" menyenaraikan isyarat model terawal dan tiupan maksimum setiap tempat.'],
   gLimits:'Had',
   gLimitsBody:'Grid model (ECMWF 9 km, GFS kira-kira 25 km) terlalu kasar untuk melukis garis badai itu sendiri; masa selalunya lari sejam dua, dan garis badai boleh terlepas atau tersalah tunjuk. Indeks hanya menyatakan sama ada bahan-bahannya wujud. Satelit Himawari menunjukkan keadaan sebenar, walaupun ia hanya melihat puncak awan, bukan tolok hujan; MET Malaysia ialah pihak berkuasa amaran.',
   gThr:'Semua ambang',
@@ -1072,7 +1071,7 @@ ms: {
 const S = {
   lang: null, size: 0, model: 'ecmwf', night: 0, hourPos: 9,
   layers: { nea: true, sat: true, hrp: false, w850: false, w10: false, rain: false, conv: false, towns: true }, strength: 1,
-  D: null, err: null, townErr: null, fallbackNote: null, loading: false, A: null, marks: [], marking: 0,
+  D: null, err: null, townErr: null, fallbackNote: null, loading: false, A: null,
 };
 const SIZES = [17, 19, 21];
 function T(key, ...args) { const v = I18N[S.lang || 'zh'][key]; return typeof v === 'function' ? v(...args) : v; }
@@ -1284,26 +1283,38 @@ function renderVerdict() {
 
 const FRAC_COL = [[0.02,'#e3eaee'],[0.1,'#c3d5f2'],[0.2,'#86a9e6'],[0.35,'#4f6fd0'],[0.5,'#3b2f9e'],[2,'#23145f']];
 function fracColor(f) { if (f == null) return '#f4f4f4'; for (const [lim, c] of FRAC_COL) if (f < lim) return c; return '#23145f'; }
-function arrowSVG(st, big) {
-  if (!st) return '<svg viewBox="0 0 24 24"></svg>';
-  const to = (st.from + 180) % 360, good = dirFactor(st.from) > 0 && st.spd >= THR.steerSpdZero;
-  const col = good ? '#b42318' : '#6b7f8c';
-  return `<svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(${to.toFixed(0)} 12 12)"><path d="M12 3v15" stroke="${col}" stroke-width="${big ? 2.6 : 3}" fill="none"/><path d="M6.5 9 12 2.5 17.5 9z" fill="${col}"/></g></svg>`;
+/** three kinds, each drawn differently so they can never look alike:
+    good  = strong enough AND blowing toward Malaysia → red, length grows with speed
+    weak  = under THR.steerSpdZero (2 m/s) whatever the direction → short, pale, dashed
+    wrong = strong enough but pointing away from Malaysia → dark grey */
+function arrowKind(st) { return st.spd < THR.steerSpdZero ? 'weak' : dirFactor(st.from) > 0 ? 'good' : 'wrong'; }
+const ARROW_COL = { good: '#b42318', weak: '#9aabb6', wrong: '#34495a' };
+function arrowPath(kind, to, spd) {
+  const col = ARROW_COL[kind], len = kind === 'weak' ? 8 : Math.min(19, 10 + spd), tip = 12 - len / 2, tail = 12 + len / 2;
+  const dash = kind === 'weak' ? ' stroke-dasharray="2.5 2.5"' : '';
+  return `<g transform="rotate(${Math.round(to)} 12 12)"><path d="M12 ${tail}V${tip + 5}" stroke="${col}" stroke-width="3" stroke-linecap="round"${dash} fill="none"/><path d="M6.8 ${tip + 6} 12 ${tip} 17.2 ${tip + 6}z" fill="${col}"/></g>`;
 }
+function arrowSVG(st) {
+  if (!st) return '<svg viewBox="0 0 24 24" aria-hidden="true"></svg>';
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">${arrowPath(arrowKind(st), (st.from + 180) % 360, st.spd)}</svg>`;
+}
+/** legend sample: the very same drawing as in the strip */
+function arrowKey(kind, to) { return `<svg class="akey" viewBox="0 0 24 24" aria-hidden="true">${arrowPath(kind, to, 8)}</svg>`; }
 function renderStrip() {
   const cells = S.A.strip, now = nowSec();
   $('strip').innerHTML = cells.map((c, i) => {
     const p = mytParts(c.t), isNow = now >= c.t && now < c.t + 3600;
     const show = p.h % 3 === 0;
     const cls = 'scell' + (isNow ? ' now' : '') + (c.gust != null && c.gust >= THR.sigGust ? ' gust' : '');
-    return `<button class="${cls}" data-pos="${i}" aria-label="${hhmm(c.t)}"><span class="hh">${show ? String(p.h).padStart(2, '0') : ''}</span><span class="bar" style="background:${c.missing ? '#f4f4f4' : fracColor(c.frac)}"></span>${arrowSVG(c.missing ? null : c.st)}</button>`;
+    const tip = c.missing || !c.st ? hhmm(c.t) : hhmm(c.t) + ' — ' + T('arrowTip', dirName(c.st.from), Math.round(c.st.spd * 3.6), T('arrowKind')[arrowKind(c.st)]);
+    return `<button class="${cls}" data-pos="${i}" aria-label="${esc(tip)}" title="${esc(tip)}"><span class="hh">${show ? String(p.h).padStart(2, '0') : ''}</span><span class="bar" style="background:${c.missing ? '#f4f4f4' : fracColor(c.frac)}"></span>${arrowSVG(c.missing ? null : c.st)}</button>`;
   }).join('');
   $('stripKey').innerHTML =
     `<span><i class="sw" style="background:${fracColor(0)}"></i>${esc(T('keyNone'))}</span>` +
     `<span><i class="sw" style="background:${fracColor(0.15)}"></i>${esc(T('keySome'))}</span>` +
     `<span><i class="sw" style="background:${fracColor(0.45)}"></i>${esc(T('keyBand'))}</span>` +
     `<span><i class="sw" style="box-shadow:inset 0 -5px 0 #b42318"></i>${esc(T('keyGust'))}</span>` +
-    `<span style="color:#b42318">▲ ${esc(T('keyArrowGood'))}</span><span style="color:#6b7f8c">▲ ${esc(T('keyArrowBad'))}</span>`;
+    `<span class="akeyrow"><b>${esc(T('keyArrowHow'))}</b> ${arrowKey('good', 90)}${esc(T('arrowKind').good)} ${arrowKey('weak', 90)}${esc(T('arrowKind').weak)} ${arrowKey('wrong', 270)}${esc(T('arrowKind').wrong)}</span>`;
 }
 function renderIngredients() {
   const P = S.A.parts, ing = T('ing'), thr = T('thr');
@@ -1335,9 +1346,10 @@ function renderTowns() {
   if (!A) { box.innerHTML = ''; return; }
   const G = { west: [], inland: [], east: [] };
   for (const r of A.towns) G[r.town.g].push(r);
+  for (const g in G) G[g].sort((a, b) => (a.first == null) - (b.first == null) || (a.first || 0) - (b.first || 0));   // stable: quiet towns keep map order
   const row = r => {
     const sig = r.first != null;
-    const lag = r.lag == null ? T('lagNa') : r.lag.upwind ? T('lagUp') : r.lag.h > THR.etaMaxH ? T('lagLong') : T('lagH', f1(r.lag.h));
+    const lag = r.lag == null ? T('lagNa') : r.lag.upwind ? T('lagUp') : r.lag.h > THR.etaMaxH ? T('lagLong') : T('lagH', T('dur', r.lag.h));
     const noTown = r.gust == null && r.rain == null;
     return `<div class="town"><div class="tn"><b>${esc(tname(r.town))}</b>${noTown ? `<span class="tag q">${esc(T('noData'))}</span>` : `<span class="tag ${sig ? 'sig' : 'q'}">${esc(sig ? T('tSig') : T('tQuiet'))}</span>`}</div>
       <div class="tgrid"><div><span>${esc(T('tFirst'))}：</span><b>${sig ? hhmm(r.first) : '—'}</b></div>
@@ -1347,7 +1359,7 @@ function renderTowns() {
   };
   const colon = S.lang === 'zh' ? '：' : ': ';
   box.innerHTML = ['west', 'inland', 'east'].map(g =>
-    `<div class="tgroup"><h3>${esc(T('grp')[g])}</h3>${g === 'east' ? `<p class="enote">${esc(T('eastNote'))}</p>` : ''}${G[g].map(row).join('')}</div>`).join('').replace(/：<\/span>/g, colon + '</span>');
+    `<div class="tgroup"><h3>${esc(T('grp')[g])}</h3><p class="gcount">${esc(T('grpCount', G[g].filter(r => r.first != null).length, G[g].length))}</p>${g === 'east' ? `<p class="enote">${esc(T('eastNote'))}</p>` : ''}${G[g].map(row).join('')}</div>`).join('').replace(/：<\/span>/g, colon + '</span>');
 }
 
 function diagramSVG() {
@@ -1403,9 +1415,10 @@ function renderGuide() {
 }
 
 /* ---------- map ---------- */
-const MAP = { m: null, groups: {}, cv: null, sat: { frames: [], layers: {}, idx: -1, timer: null, guess: false, off: 0, loadedAt: 0, busy: false, give: false }, hrp: { layer: null, ts: null, back: 0, give: false, guess: false, loadedAt: 0, busy: false }, markLayer: null,
+const MAP = { m: null, groups: {}, cv: null, sat: { frames: [], layers: {}, idx: -1, timer: null, guess: false, off: 0, loadedAt: 0, busy: false, give: false }, hrp: { layer: null, ts: null, back: 0, give: false, guess: false, loadedAt: 0, busy: false },
   nea: { frames: { 480: [], 240: [] }, bb: {}, slots: [], idx: -1, timer: null, err: null, via: null, loadedAt: 0, busy: false, overlays: {}, box: null } };
 // satellite sits UNDER the radar and is dimmer, so rain echoes stay readable when both are on
+const LIVE_LAYERS = ['nea','sat','hrp','towns'], FCST_LAYERS = ['w850','w10','rain','conv'];
 const STRENGTH = { sat: [0.35, 0.55, 0.8], nea: [0.6, 0.85, 1], hrp: [0.5, 0.75, 0.95] };
 function applyStrength() {
   const X = MAP.sat; if (X.idx >= 0) showSatFrame(X.idx);
@@ -1439,10 +1452,8 @@ function initMap() {
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { pane: 'labels', maxZoom: 16 }).addTo(m);
   MAP.cv = L.canvas({ pane: 'model', padding: 0.3 });
   for (const g of ['w850', 'w10', 'rain', 'conv', 'towns', 'axis']) MAP.groups[g] = L.layerGroup().addTo(m);
-  MAP.markLayer = L.layerGroup().addTo(m);
   L.polyline(AXIS, { color: '#9fe6ee', weight: 2.5, dashArray: '8 7', interactive: false, pane: 'model' }).addTo(MAP.groups.axis);
   m.attributionControl.addAttribution('<a href="https://open-meteo.com/">Open-Meteo</a>');
-  m.on('click', onMapClick);
 }
 const SPD_COL = [[15,'#ffffff'],[30,'#5fe3f0'],[45,'#ffd400'],[1e9,'#ff4d4d']];
 const RAIN_COL = [[0.5,null],[2.5,'#8ec5ff'],[7,'#3d8bff'],[20,'#ffb000'],[1e9,'#ff3df0']];
@@ -1457,11 +1468,12 @@ function arrowLines(lat, lon, kmh, from) {
   const h2 = [b[0] + Math.cos(back - 0.45) * h, b[1] + Math.sin(back - 0.45) * h / cosl];
   return [[a, b], [h1, b, h2]];
 }
+function sliderLabel() { const t = sliderTs(), p = mytParts(t); return T('slAt', p, hhmm(t)); }
 function sliderTs() { const M0 = nightMorning(nowSec(), S.night); return M0 + (S.hourPos - 6) * 3600; }
 /** what the wind arrows say at the slider hour, in words — Strait-mean steering (same numbers the index uses) */
 function renderWindRead() {
   const box = $('windRead'); if (!box) return;
-  if (!S.layers.w850 && !S.layers.w10) { box.hidden = true; return; }
+  if (!FCST_LAYERS.some(k => S.layers[k])) { box.hidden = true; return; }
   box.hidden = false;
   const D = S.D, h = D ? D.idx.get(sliderTs()) : null, hh = hhmm(sliderTs());
   if (h == null) { box.innerHTML = `<p>${esc(T('wrNone', hh))}</p>`; return; }
@@ -1480,6 +1492,16 @@ function renderWindRead() {
     for (const k of STRAIT) { const sp = D.grid.ws10[k][h], dd = D.grid.wd10[k][h]; if (sp == null || dd == null) continue; const [u, v] = uvFrom(sp, dd); su += u; sv += v; n++; }
     if (n) { const f = fromUV(su / n, sv / n); out.push(T('wrSurf', hh, dirName(f.from), Math.round(f.spd))); }
   }
+  if (S.layers.rain) {
+    let wet = 0, tot = 0, mx = 0;
+    for (const k of STRAIT) { const pr = D.grid.pr[k][h]; if (pr == null) continue; tot++; if (pr >= THR.rainMM) wet++; if (pr > mx) mx = pr; }
+    if (tot) out.push(T('wrRain', hh, Math.round(wet / tot * 100), f1(mx)));
+  }
+  if (S.layers.conv) {
+    let cs = 0, cn = 0; for (const k of STRAIT_INNER) { const c = convAt(D.grid, k, h); if (c != null) { cs += c; cn++; } }
+    if (cn) { const m = cs / cn; out.push(T(m > 0 ? 'wrConvUp' : 'wrConvDown', hh, f1(Math.abs(m) * 1e5))); }
+  }
+  if (S.autoOn) { out.push(T('wrAuto')); S.autoOn = false; }
   if (curView === 'east') out.push(T('wrArea'));
   box.innerHTML = out.map(t => `<p>${esc(t)}</p>`).join('');
 }
@@ -1516,7 +1538,7 @@ function renderTownMarkers() {
   for (const r of S.A.towns) {
     const sig = r.first != null;
     const mk = L.circleMarker([r.town.lat, r.town.lon], { pane: 'marks', radius: 8, weight: 2.5, color: '#ffffff', fillColor: sig ? '#ff3b30' : '#0f1f2a', fillOpacity: 1 });
-    const lag = r.lag == null ? '' : r.lag.upwind ? T('lagUp') : r.lag.h > THR.etaMaxH ? T('lagLong') : T('lagH', f1(r.lag.h));
+    const lag = r.lag == null ? '' : r.lag.upwind ? T('lagUp') : r.lag.h > THR.etaMaxH ? T('lagLong') : T('lagH', T('dur', r.lag.h));
     mk.bindPopup(`<b>${esc(tname(r.town))}</b><br>${esc(T('tFirst'))}: ${sig ? hhmm(r.first) : '—'}<br>${esc(T('tGust'))}: ${r.gust == null ? '—' : Math.round(r.gust) + ' km/h'}<br>${esc(T('tRain'))}: ${r.rain == null ? '—' : f1(r.rain) + ' mm'}${lag ? '<br>' + esc(T('tLag')) + ': ' + esc(lag) : ''}`);
     mk.bindTooltip(tname(r.town), { direction: 'right', offset: [8, 0], className: 'tlab' });
     mk.addTo(MAP.groups.towns);
@@ -1526,23 +1548,24 @@ function renderMapControls() {
   const V = T('views');
   $('segView').innerHTML = Object.keys(VIEWS).map(v => `<button data-view="${v}" aria-pressed="${curView === v}">${esc(V[v])}</button>`).join('');
   const Ly = T('ly');
-  $('segLayers').innerHTML = Object.keys(S.layers).map(k => `<button data-layer="${k}" aria-pressed="${!!S.layers[k]}">${esc(Ly[k])}</button>`).join('');
+  const lyBtn = k => `<button data-layer="${k}" aria-pressed="${!!S.layers[k]}">${esc(Ly[k])}</button>`;
+  $('segLive').innerHTML = LIVE_LAYERS.map(lyBtn).join('');
+  $('segFcst').innerHTML = FCST_LAYERS.map(lyBtn).join('');
+  $('grpLive').textContent = T('grpLive'); $('grpFcst').textContent = T('grpFcst');
   $('segStrength').innerHTML = `<span class="seglab">${esc(T('strengthLab'))}</span>` + T('strengths').map((t, i) => `<button data-strength="${i}" aria-pressed="${S.strength === i}">${esc(t)}</button>`).join('') +
     `<button data-fs="1">${esc(T('fsOn'))}</button>`;
-  $('slTime').textContent = hhmm(sliderTs()) + ' MYT';
+  $('slTime').textContent = sliderLabel();
   $('slider').value = S.hourPos;
   $('slNote').textContent = T('slNote');
   $('segPlay').innerHTML = (S.layers.nea ? `<button data-neaplay="1" aria-pressed="${!!MAP.nea.timer}">${esc(MAP.nea.timer ? T('neaStop') : T('neaPlay'))}</button>` : '') +
     (S.layers.sat ? `<button data-satplay="1" aria-pressed="${!!MAP.sat.timer}">${esc(MAP.sat.timer ? T('satStop') : T('satPlay'))}</button>` : '');
-  $('segMark').innerHTML = `<button data-mark="1" aria-pressed="${S.marking > 0}">${esc(T('markBtn'))}</button>` + (S.marks.length ? `<button data-mark="clear">${esc(T('markClear'))}</button>` : '');
-  $('markHint').hidden = !S.marking; $('markHint').textContent = S.marking === 1 ? T('markHint1') : S.marking === 2 ? T('markHint2') : '';
   const lg = [];
   if (S.layers.rain) lg.push(`<span class="lg">${esc(T('lgRain'))}: ${RAIN_COL.filter(r => r[1]).map((r, i, a) => `<i class="sw" style="background:${r[1]}"></i>${i === 0 ? '0.5' : a[i - 1][0]}`).join(' ')}</span>`);
   if (S.layers.w850 || S.layers.w10) lg.push(`<span class="lg">${esc(T('lgWind'))}: ${SPD_COL.map((r, i) => `<i class="sw" style="background:${r[1]}"></i>${i === 0 ? '<15' : i === SPD_COL.length - 1 ? '≥' + SPD_COL[i - 1][0] : SPD_COL[i - 1][0] + '–' + r[0]}`).join(' ')}</span>`);
   if (S.layers.conv) lg.push(`<span class="lg">${esc(T('lgConv'))}</span>`);
   if (S.layers.nea) lg.push(`<span class="lg">${esc(T('lgNea'))}</span>`, `<span class="lg">${esc(T('lgBox'))}</span>`);
   if (S.layers.hrp) lg.push(`<span class="lg">${esc(T('lgHrp'))}</span>`);
-  lg.push(`<span class="lg">${esc(T('lgAxis'))}</span>`);
+  lg.push(`<span class="lg"><i class="sw" style="background:#ff3b30;height:6px;border:0"></i>${esc(T('lgLive'))}</span>`, `<span class="lg">${esc(T('lgAxis'))}</span>`);
   $('legend').innerHTML = lg.join('');
   renderLiveSrc();
 }
@@ -1569,7 +1592,7 @@ function renderLiveSrc() {
 function renderMapAll() {
   renderMapControls();
   if (!MAP.m) return;
-  renderModelLayers(); renderTownMarkers(); renderEta();
+  renderModelLayers(); renderTownMarkers();
   syncNea(); syncSat(); syncHrp();
 }
 
@@ -1853,7 +1876,7 @@ function renderLive() {
     if (st === 'approach' && first) html += `<div class="lvact">${esc(T('lvAct', tname(first.t), first.e.now ? T('lvNow') : hhmm(now + Math.round(first.e.h * 3600))))}</div>`;
     if (st === 'line') html += `<div class="lvact">${esc(T('lvActLine'))}</div>`;
     if (rows.length) html += `<b>${esc(T('lvEtaHead'))}</b><table class="lveta">` + rows.slice(0, 10).map(r => {
-      const e = r.e, cell = e.now ? T('lvNow') : e.h > THR.etaMaxH ? T('etaLong') : T('etaIn', f1(e.h), hhmm(now + Math.round(e.h * 3600)));
+      const e = r.e, cell = e.now ? T('lvNow') : e.h > THR.etaMaxH ? T('etaLong') : T('etaIn', T('dur', e.h), hhmm(now + Math.round(e.h * 3600)));
       return `<tr><td>${esc(tname(r.t))}${e.side ? esc(T('lvSide')) : ''}</td><td>${esc(cell)}</td></tr>`;
     }).join('') + '</table>';
   }
@@ -1879,38 +1902,6 @@ function drawLiveLine() {
 }
 
 /* marking a squall line and estimating arrival */
-function onMapClick(ev) {
-  if (!S.marking) return;
-  S.marks.push([ev.latlng.lat, ev.latlng.lng]);
-  if (S.marking === 1) { S.marking = 2; }
-  else { S.marking = 0; }
-  renderMapControls(); renderEta();
-}
-function steerNow() {
-  const D = S.D; if (!D) return null;
-  const t = Math.floor(nowSec() / 3600) * 3600; const h = D.idx.get(t);
-  if (h == null) return null;
-  const st = steerOver(D.grid, [h]); return st ? Object.assign(st, { ts: t }) : null;
-}
-function renderEta() {
-  const box = $('eta');
-  if (MAP.markLayer) MAP.markLayer.clearLayers();
-  if (!S.marks.length) { box.hidden = true; return; }
-  if (MAP.m) {
-    for (const p of S.marks) L.circleMarker(p, { pane: 'marks', radius: 7, color: '#b42318', weight: 3, fillColor: '#fff', fillOpacity: 1 }).addTo(MAP.markLayer);
-    if (S.marks.length === 2) L.polyline(S.marks, { pane: 'marks', color: '#b42318', weight: 5, dashArray: '10 6' }).addTo(MAP.markLayer);
-  }
-  if (S.marks.length < 2) { box.hidden = true; return; }
-  const st = steerNow(); box.hidden = false;
-  if (!st) { box.innerHTML = `<b>${esc(T('etaNoSteer'))}</b>`; return; }
-  const [a, b] = S.marks, now = nowSec();
-  const rows = TOWNS.filter(t => t.g !== 'east').map(t => ({ t, e: etaFromLine(a, b, t.lat, t.lon, st) })).filter(r => r.e);
-  rows.sort((x, y) => (x.e.now ? -1 : x.e.h != null ? x.e.h : 1e9) - (y.e.now ? -1 : y.e.h != null ? y.e.h : 1e9));
-  const cell = e => e.now ? T('etaNow') : e.h != null ? (e.h > THR.etaMaxH ? T('etaLong') : T('etaIn', f1(e.h), hhmm(now + Math.round(e.h * 3600)))) : T('etaAway');
-  box.innerHTML = `<b>${esc(T('etaHead', Math.round(st.spd * 3.6), dirName((st.from + 180) % 360), hhmm(st.ts)))}</b>
-    <table>${rows.map(r => `<tr><td>${esc(tname(r.t))}${r.e.beyond ? esc(T('etaBeyond')) : ''}</td><td>${esc(cell(r.e))}</td></tr>`).join('')}</table>
-    <p class="sub">${esc(T('etaNote'))}</p>`;
-}
 
 /* ---------- events ---------- */
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('mapwrap').classList.contains('fs')) setFullscreen(false); });
@@ -1925,11 +1916,6 @@ document.addEventListener('click', ev => {
   else if (b.dataset.strength != null) { S.strength = +b.dataset.strength; lsSet(LSK.strength, S.strength); applyStrength(); renderMapControls(); }
   else if (b.dataset.fs) setFullscreen(true);
   else if (b.id === 'fsExit') setFullscreen(false);
-  else if (b.dataset.mark) {
-    if (b.dataset.mark === 'clear') { S.marks = []; S.marking = 0; }
-    else { S.marks = []; S.marking = S.marking ? 0 : 1; if (S.marking && !S.layers.sat && !S.layers.nea) { S.layers.nea = true; S.layers.sat = true; lsSet(LSK.layers, S.layers); renderMapAll(); } }
-    renderMapControls(); renderEta();
-  }
   else if (b.dataset.pos != null) { S.hourPos = +b.dataset.pos; renderMapAll(); $('map').scrollIntoView({ behavior: 'smooth' }); }
   else if (b.dataset.go) { $(b.dataset.go).scrollIntoView({ behavior: 'smooth' }); }
   else if (b.dataset.lang) { setLang(b.dataset.lang); $('langOvl').hidden = true; }
@@ -1937,7 +1923,11 @@ document.addEventListener('click', ev => {
 $('btnReload').onclick = () => refresh(true);
 $('btnLang').onclick = () => { showLangPicker(); };
 $('btnSize').onclick = () => { S.size = (S.size + 1) % SIZES.length; lsSet(LSK.size, S.size); renderStatic(); if (MAP.m) MAP.m.invalidateSize(); };
-$('slider').addEventListener('input', e => { S.hourPos = +e.target.value; $('slTime').textContent = hhmm(sliderTs()) + ' MYT'; renderModelLayers(); });
+$('slider').addEventListener('input', e => {
+  S.hourPos = +e.target.value; $('slTime').textContent = sliderLabel();
+  if (!FCST_LAYERS.some(k => S.layers[k])) { S.layers.w850 = true; S.layers.rain = true; lsSet(LSK.layers, S.layers); S.autoOn = true; renderMapControls(); }
+  renderModelLayers();
+});
 
 function showLangPicker() {
   $('pickLang').textContent = S.lang ? ({ zh:'请选择语言', en:'Choose language', ms:'Pilih bahasa' })[S.lang] : '请选择语言 · Choose language · Pilih bahasa';
