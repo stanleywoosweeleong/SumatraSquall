@@ -1,5 +1,5 @@
 /* Sumatra Squall Watch — service worker. CACHE must match VERSION in index.html. */
-const CACHE = 'ssw-20260924-21';
+const CACHE = 'ssw-20260925-22';
 const SHELL = ['./', './index.html', './manifest.json', './icon.svg', './icon-192.png', './icon-512.png'];
 const CDN = ['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'];
 
@@ -9,8 +9,9 @@ self.addEventListener('install', e => {
     for (const u of CDN) { try { await c.add(new Request(u, { mode: 'cors' })); } catch (err) {} }
   }));
 });
+// Other apps on the same github.io origin (e.g. SUHU) keep their own caches: only this app's old 'ssw-' caches are removed.
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('ssw-') && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
 

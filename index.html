@@ -74,9 +74,9 @@ ul.adv li{position:relative;padding:6px 0 6px 30px;border-bottom:1px solid #dfe7
 ul.adv li:last-child{border-bottom:0}
 ul.adv li::before{content:"";position:absolute;left:8px;top:.62em;width:9px;height:9px;background:var(--sea);border-radius:50%}
 #live{border-left:12px solid #8aa0ae}
-#live.approach{border-left-color:var(--strong)} #live.line{border-left-color:var(--likely)} #live.scattered{border-left-color:var(--watch)} #live.clear{border-left-color:var(--low)}
+#live.approach{border-left-color:var(--strong)} #live.clearPart{border-left-color:var(--watch)} #live.line{border-left-color:var(--likely)} #live.scattered{border-left-color:var(--watch)} #live.clear{border-left-color:var(--low)}
 .lvstate{font-size:1.45rem;font-weight:800;line-height:1.2}
-#live.approach .lvstate{color:var(--strong)} #live.line .lvstate{color:var(--likely)} #live.scattered .lvstate{color:var(--watch)} #live.clear .lvstate{color:var(--low)}
+#live.approach .lvstate{color:var(--strong)} #live.line .lvstate{color:var(--likely)} #live.scattered .lvstate{color:var(--watch)} #live.clear .lvstate{color:var(--low)} #live.clearPart .lvstate{color:var(--watch)}
 .lvact{font-weight:800;background:#fdecea;border-radius:4px;padding:8px 10px;margin:8px 0}
 .lveta{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin:4px 0}
 .lveta td{padding:5px 4px;border-top:1px solid #d6e0e6}
@@ -339,10 +339,11 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
    All times are Malaysia Standard Time (UTC+8, no DST): data is fetched in GMT
    as unixtime and shifted by a fixed +8 h, so the device clock never matters.
    ========================================================================== */
-const VERSION = 'ssw-20260924-21';
+const VERSION = 'ssw-20260925-22';
 const MYT = 8 * 3600;
 const APP_URL = 'https://stanleywoosweeleong.github.io/SumatraSquall/';   // what the QR code and the WhatsApp message point to
 const LSK = { lang:'ssw.lang', size:'ssw.size', model:'ssw.model', layers:'ssw.layers2', strength:'ssw.strength', home:'ssw.home', homeCache:'ssw.homecache.', cache:'ssw.cache3.' };
+const FETCH_TIMEOUT_MS = 30000;   // covers the whole request, body included
 const MIN_RELOAD_MIN = 30;   // no re-fetch sooner than this (Open-Meteo is a shared free service)
 const AUTO_MIN = 60;         // auto re-fetch when the page is open and data is older than this
 const STALE_H = 6;           // red banner beyond this
@@ -410,6 +411,8 @@ const THR = {
   etaMaxH: 6,                                           // beyond this a squall line rarely holds together — say so instead of a clock time
 };
 const W8 = { steer:25, cape:15, conv:20, rain:20, gust:15, season:5 };
+// no level is issued unless all of these are present with at least COVER of their expected points × hours
+const ESSENTIAL = ['steer', 'cape', 'conv', 'rain'], COVER = 0.8;
 const LEVELS = [[25,'low'],[45,'watch'],[65,'likely'],[101,'strong']];
 
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -514,22 +517,22 @@ function analyzeNight(D, M0) {
   const W = hoursIdx(D, M0, 0, 9), Wc = hoursIdx(D, M0, -3, 6), Wk = hoursIdx(D, M0, 1, 6), Wr = hoursIdx(D, M0, 0, 8), Wg = hoursIdx(D, M0, 2, 10);
   // 1 steering
   const st = W.length ? steerOver(G, W) : null;
-  if (st) { const df = dirFactor(st.from), sf = spdFactor(st.spd); parts.steer = { score: df * sf, df, sf, st }; }
+  if (st && W.length === 10 && st.n >= COVER * STRAIT.length * 10 * 2) { const df = dirFactor(st.from), sf = spdFactor(st.spd); parts.steer = { score: df * sf, df, sf, st }; }
   else parts.steer = { missing: true };
   // 2 CAPE — 75th percentile over Strait points of each point's max 21–06
   const caps = [];
   for (const k of STRAIT) { let m = null; for (const h of Wc) { const c = G.cape[k][h]; if (c != null && (m == null || c > m)) m = c; } if (m != null) caps.push(m); }
-  if (caps.length) { const c = pct(caps, 0.75); parts.cape = { score: clamp((c - THR.capeZero) / (THR.capeFull - THR.capeZero)), c }; }
+  if (Wc.length === 10 && caps.length >= COVER * STRAIT.length) { const c = pct(caps, 0.75); parts.cape = { score: clamp((c - THR.capeZero) / (THR.capeFull - THR.capeZero)), c }; }
   else parts.cape = { missing: true };
   // 3 convergence — mean over inner Strait points 01–06
   let cs = 0, cn = 0, cmax = null;
   for (const h of Wk) for (const k of STRAIT_INNER) { const c = convAt(G, k, h); if (c == null) continue; cs += c; cn++; if (cmax == null || c > cmax) cmax = c; }
-  if (cn) { const mean = cs / cn; parts.conv = { score: clamp(mean / THR.convFull), mean, max: cmax }; }
+  if (Wk.length === 6 && cn >= COVER * STRAIT_INNER.length * 6) { const mean = cs / cn; parts.conv = { score: clamp(mean / THR.convFull), mean, max: cmax }; }
   else parts.conv = { missing: true };
   // 4 model rain over the Strait 00–08
   let wet = 0, tot = 0, maxP = null;
   for (const k of STRAIT) { let m = null; for (const h of Wr) { const p = G.pr[k][h]; if (p != null && (m == null || p > m)) m = p; } if (m == null) continue; tot++; if (m >= THR.rainMM) wet++; if (maxP == null || m > maxP) maxP = m; }
-  if (tot) { const f = wet / tot; parts.rain = { score: clamp(f / THR.rainFracFull), frac: f, max: maxP }; }
+  if (Wr.length === 9 && tot >= COVER * STRAIT.length) { const f = wet / tot; parts.rain = { score: clamp(f / THR.rainFracFull), frac: f, max: maxP }; }
   else parts.rain = { missing: true };
   // 5 west-coast gusts 02–10
   let gmax = null, gt = null, gh = null;
@@ -541,14 +544,18 @@ function analyzeNight(D, M0) {
 
   let sum = 0, wsum = 0; const missing = [];
   for (const key of Object.keys(W8)) { const p = parts[key]; p.w = W8[key]; if (p.missing) { missing.push(key); continue; } p.pts = p.score * p.w; sum += p.pts; wsum += p.w; }
-  // the season alone says nothing about a particular night: with no model ingredient there is no score
-  let score = wsum > W8.season ? Math.round(sum / wsum * 100) : null;
+  // a level needs the whole 18:00→12:00 window and every essential ingredient; rescaling over what is left
+  // would let e.g. CAPE alone read "strongly favourable"
+  const windowOk = hoursIdx(D, M0, -6, 12).length === 19;
+  const lacking = ESSENTIAL.filter(k => parts[k].missing);
+  const blocked = !windowOk ? 'window' : lacking.length ? 'missing' : null;
+  let score = blocked ? null : Math.round(sum / wsum * 100);
   let gate = false;
   if (score != null && parts.steer.df === 0 && score > THR.gateCap) { score = THR.gateCap; gate = true; }
   const towns = TOWNS.map(t => townResult(D, t, M0, st));
   let earliest = null;
   for (const r of towns) if (r.town.g === 'west' && r.first != null && (earliest == null || r.first < earliest.first)) earliest = r;
-  return { M0, score, level: score == null ? null : levelOf(score), parts, gate, missing, steer: st, towns, earliest, hours: W.length };
+  return { M0, score, level: score == null ? null : levelOf(score), parts, gate, missing, lacking, blocked, steer: st, towns: windowOk ? towns : [], earliest: windowOk ? earliest : null, hours: W.length };
 }
 
 /** 19 hourly cells 18:00 → 12:00 for the strip */
@@ -578,7 +585,8 @@ const DET = {
   radarKm: 470,                 // usable radar range from Changi
   gap: 2,                       // cells of gap allowed inside one band (~11 km)
   sideKm: 60,                   // a town beyond the band's end by more than this may be missed
-  radarMaxMin: 30, hrpMaxMin: 60,   // older pictures than this are not used as "now"
+  radarMaxMin: 30, hrpMaxMin: 60,
+  fullCov: 0.9,                 // below this share of the Strait seen, statements are limited to the part that is seen   // older pictures than this are not used as "now"
 };
 const RADAR_C = [1.34911, 103.972583];
 function kmBetween(la1, lo1, la2, lo2) { const dx = (lo2 - lo1) * 111.32 * Math.cos((la1 + la2) / 2 * Math.PI / 180), dy = (la2 - la1) * 110.57; return Math.hypot(dx, dy); }
@@ -665,9 +673,13 @@ function detectGrid(v, cov) {
   }
   groups.sort((a, b) => b.km2 - a.km2);
   // the biggest group is "the" band; a few more are kept so movement can be matched to the same storm next time
-  const clusters = groups.filter((g, i) => i === 0 || g.km2 >= DET.clearKm2).slice(0, 6).map(g => shapeOf(g.mem, g.km2));
+  const clusters = groups.filter((g, i) => i === 0 || g.km2 >= DET.clearKm2).slice(0, 6).map(g => Object.assign(shapeOf(g.mem, g.km2), { radarShare: g.mem.filter(k => cov[k] === 1).length / g.mem.length }));
   const line = clusters.find(c => c.isLine);
-  return { zoneKm2, covFrac: zoneKm2 ? covKm2 / zoneKm2 : 0, strongKm2, cluster: line || clusters[0] || null, clusters };
+  // which third of the Strait is (mostly) not seen: north ≥ 4° N, centre 2.5–4° N, south < 2.5° N
+  const sec = { north: [0, 0], centre: [0, 0], south: [0, 0] };
+  for (let k = 0; k < n; k++) { if (!zone[k]) continue; const s_ = DG.lat[k] >= 4 ? 'north' : DG.lat[k] >= 2.5 ? 'centre' : 'south'; sec[s_][0] += area[k]; if (cov[k]) sec[s_][1] += area[k]; }
+  const unseen = Object.keys(sec).filter(k => sec[k][0] && sec[k][1] / sec[k][0] < 0.5);
+  return { zoneKm2, covFrac: zoneKm2 ? covKm2 / zoneKm2 : 0, strongKm2, cluster: line || clusters[0] || null, clusters, unseen };
 }
 /** movement of the band between two pictures dtH hours apart (km/h toward Malaysia; bearing of travel) */
 function motion(cNow, cPast, dtH) {
@@ -676,9 +688,16 @@ function motion(cNow, cPast, dtH) {
   if (Math.hypot(dx, dy) > 150) return null;                       // a different storm, not the same band moving
   return { kmh: (dx * cNow.n[0] + dy * cNow.n[1]) / dtH, dir: (Math.atan2(cNow.n[0], cNow.n[1]) * 180 / Math.PI + 360) % 360 };
 }
+/** which single source may measure the band's movement: 'radar', 'hrp', or null for a mix */
+function motionSource(c, haveRadar, haveHrp) {
+  if (!c) return null;
+  if (c.radarShare >= 0.7 && haveRadar) return 'radar';
+  if (c.radarShare <= 0.3 && haveHrp) return 'hrp';
+  return null;
+}
 function liveState(res, mv) {
   if (!res || res.covFrac < 0.3) return 'nodata';
-  if (res.strongKm2 < DET.clearKm2) return 'clear';
+  if (res.strongKm2 < DET.clearKm2) return res.covFrac >= DET.fullCov ? 'clear' : 'clearPart';
   const c = res.cluster; if (!c || !c.isLine) return 'scattered';
   return (mv && mv.kmh >= DET.moveKmh) ? 'approach' : 'line';
 }
@@ -741,9 +760,16 @@ zh: {
   rGustHi:(g,t,hh)=>`模型显示西海岸阵风可达 ${g} km/h（${t} ${hh}）。`,
   earliest:(t,hh)=>`模型最早信号：${t} 约 ${hh}（MYT）。飑线的实际时间常与模型差一两个小时，以向日葵卫星图为准。`,
   liveHead:'现在的海峡（自动检测）',
+  blkStale:h=>`预报已是 ${h} 小时前读取的，太旧，不给等级和建议。请点「重新读取」。`,
+  blkMissing:l=>`模型缺少必要的资料（${l}），不给等级。可改用另一个模型。`,
+  lvClearPart:(p,l)=>`看得到的部分（约 ${p}% 的海峡）没有成片的中到大雨；${l}看不到，那里可能有雨。`,
+  lvPartNote:l=>`（${l}看不到。）`, sect:{north:'海峡北段',centre:'海峡中段',south:'海峡南段'},
+  lvMixed:'雷雨带一部分在雷达里、一部分只在卫星里，不能可靠算出速度，所以暂不报到达时间。',
+  lvCovChange:'前后两张图覆盖的范围不同，暂时算不出可靠的速度。',
+  lvExpired:'上一次的实况已过时，正在重新读取雷达和卫星图。',
   nightNoData:'所选那一夜不在已读取的模型资料范围内，无法计算。请点「重新读取」。',
   lvStale:'最新的雷达和卫星图都太旧，不能当作现在的情况', lvRadarOld:m=>`新加坡雷达最新一张已是 ${m} 分钟前，没有用来判读。`, lvRadarFail:r=>`新加坡雷达图读取失败（${r}），这次只用卫星判读。`, lvHrpOld:m=>`强雨域推定最新一张已是 ${m} 分钟前，没有用来判读。`,
-  lvState:{approach:'雷雨带正在接近',line:'海峡上有雷雨带',scattered:'零散雷雨',clear:'海峡平静',nodata:'暂无实况'},
+  lvState:{approach:'雷雨带正在接近',line:'海峡上有雷雨带',scattered:'零散雷雨',clear:'海峡平静',clearPart:'看得到的部分平静',nodata:'暂无实况'},
   nmSquall:'苏门答腊飑线', nmBand:'一条雷雨带',
   lvApproach:(nm,dir,k)=>`${nm}正在向${dir}移动，约 ${k} km/h。`,
   lvLine:nm=>`${nm}在海峡上，但移动很慢，或还没有半小时前的图可比，算不出速度。`,
@@ -902,9 +928,16 @@ en: {
   rGustHi:(g,t,hh)=>`The model gives west-coast gusts up to ${g} km/h (${t}, ${hh}).`,
   earliest:(t,hh)=>`Earliest model signal: ${t} around ${hh} MYT. Real squalls often run an hour or two off the model — trust the Himawari satellite.`,
   liveHead:'The Strait right now (automatic)',
+  blkStale:h=>`The forecast was loaded ${h} hours ago — too old to give a level or advice. Tap Reload.`,
+  blkMissing:l=>`The model is missing essential data (${l}), so no level is given. Try the other model.`,
+  lvClearPart:(p,l)=>`No widespread moderate or heavy rain in the part that can be seen (about ${p}% of the Strait); the ${l} cannot be seen and may have rain.`,
+  lvPartNote:l=>`(The ${l} cannot be seen.)`, sect:{north:'northern Strait',centre:'central Strait',south:'southern Strait'},
+  lvMixed:'Part of the band is on radar and part only on the satellite, so its speed cannot be worked out reliably; no arrival times for now.',
+  lvCovChange:'The two pictures cover different parts of the Strait, so no reliable speed yet.',
+  lvExpired:'The last live reading is out of date; reading the radar and satellite again.',
   nightNoData:'The chosen night is outside the model data that was loaded, so it cannot be scored. Tap Reload.',
   lvStale:'the newest radar and satellite pictures are too old to count as now', lvRadarOld:m=>`The newest Singapore radar picture is ${m} min old and was not used.`, lvRadarFail:r=>`The Singapore radar picture failed to load (${r}); this reading uses the satellite only.`, lvHrpOld:m=>`The newest Heavy Rain Potential picture is ${m} min old and was not used.`,
-  lvState:{approach:'Storm band approaching',line:'Storm band over the Strait',scattered:'Scattered storms',clear:'Strait calm',nodata:'No live reading'},
+  lvState:{approach:'Storm band approaching',line:'Storm band over the Strait',scattered:'Scattered storms',clear:'Strait calm',clearPart:'Calm where visible',nodata:'No live reading'},
   nmSquall:'A Sumatra squall line', nmBand:'A line of thunderstorms',
   lvApproach:(nm,dir,k)=>`${nm} is moving ${dir} at about ${k} km/h.`,
   lvLine:nm=>`${nm} is over the Strait, but it is moving slowly, or there is no picture from half an hour ago yet to work out its speed.`,
@@ -1063,9 +1096,16 @@ ms: {
   rGustHi:(g,t,hh)=>`Model memberi tiupan kencang pantai barat sehingga ${g} km/j (${t}, ${hh}).`,
   earliest:(t,hh)=>`Isyarat model terawal: ${t} sekitar ${hh} MYT. Garis badai sebenar selalunya lari sejam dua daripada model — percayai satelit Himawari.`,
   liveHead:'Selat sekarang (automatik)',
+  blkStale:h=>`Ramalan dimuat ${h} jam lalu — terlalu lama untuk memberi tahap atau nasihat. Tekan Muat semula.`,
+  blkMissing:l=>`Model kekurangan data penting (${l}), jadi tiada tahap diberi. Cuba model lain.`,
+  lvClearPart:(p,l)=>`Tiada hujan sederhana atau lebat yang meluas di bahagian yang kelihatan (kira-kira ${p}% Selat); ${l} tidak kelihatan dan mungkin ada hujan.`,
+  lvPartNote:l=>`(${l} tidak kelihatan.)`, sect:{north:'utara Selat',centre:'tengah Selat',south:'selatan Selat'},
+  lvMixed:'Sebahagian jalur dilihat radar dan sebahagian hanya oleh satelit, jadi kelajuannya tidak dapat dikira dengan boleh dipercayai; tiada masa tiba buat masa ini.',
+  lvCovChange:'Dua imej meliputi bahagian Selat yang berbeza, jadi belum ada kelajuan yang boleh dipercayai.',
+  lvExpired:'Bacaan langsung terakhir sudah lapuk; sedang membaca radar dan satelit semula.',
   nightNoData:'Malam yang dipilih di luar data model yang dimuat, jadi tidak dapat dikira. Tekan Muat semula.',
   lvStale:'imej radar dan satelit terkini terlalu lama untuk dikira sebagai sekarang', lvRadarOld:m=>`Imej radar Singapura terkini sudah ${m} minit lalu dan tidak digunakan.`, lvRadarFail:r=>`Imej radar Singapura gagal dimuat (${r}); bacaan ini guna satelit sahaja.`, lvHrpOld:m=>`Imej Anggaran Hujan Lebat terkini sudah ${m} minit lalu dan tidak digunakan.`,
-  lvState:{approach:'Jalur ribut menghampiri',line:'Jalur ribut di atas Selat',scattered:'Ribut bertaburan',clear:'Selat tenang',nodata:'Tiada bacaan langsung'},
+  lvState:{approach:'Jalur ribut menghampiri',line:'Jalur ribut di atas Selat',scattered:'Ribut bertaburan',clear:'Selat tenang',clearPart:'Tenang di kawasan yang kelihatan',nodata:'Tiada bacaan langsung'},
   nmSquall:'Garis badai Sumatera', nmBand:'Satu jalur ribut petir',
   lvApproach:(nm,dir,k)=>`${nm} sedang bergerak ke ${dir} kira-kira ${k} km/j.`,
   lvLine:nm=>`${nm} berada di atas Selat, tetapi bergerak perlahan, atau belum ada imej setengah jam lalu untuk mengira kelajuannya.`,
@@ -1232,13 +1272,13 @@ function omURL(pts, vars, model, cell) {
 async function fetchJSON(url, tries = 2) {
   let lastErr = null;
   for (let a = 0; a < tries; a++) {
-    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 30000);
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
     try {
       const r = await fetch(url, { signal: ctl.signal, cache: 'no-store' });
-      clearTimeout(tm);
-      if (r.ok) return await r.json();
+      if (r.ok) { const j = await r.json(); clearTimeout(tm); return j; }   // a body that stalls is aborted too
       let why = 'HTTP ' + r.status;
       try { const j = await r.json(); if (j && j.reason) why += ' — ' + j.reason; } catch (e) {}
+      clearTimeout(tm);
       lastErr = new Error(why); lastErr.status = r.status;
       if (r.status !== 429 && r.status !== 503) break;
     } catch (e) { clearTimeout(tm); lastErr = new Error(e.name === 'AbortError' ? 'timeout 30 s' : (e.message || 'network error')); }
@@ -1313,13 +1353,14 @@ async function refresh(force) {
 function useRaw(raw) {
   S.D = buildD(raw.model, raw.modelId, raw.at, raw.g, raw.t); S.D.townId = raw.townId || null; S.D.empty = raw.empty || [];
   const h = homeTown(), c = h && h.custom ? lsGet(LSK.homeCache + raw.model, null) : null;
-  if (c && c.lat === h.lat && c.lon === h.lon) attachHome(c);        // no flicker: show the saved point at once
+  if (homeCacheOk(c, h, raw.model, S.D.townId || MODELS[raw.model].towns[0])) attachHome(c);   // no flicker, but never a stale or foreign point
 }
 
 /* ---------- rendering ---------- */
 function analyze() {
   if (!S.D) { S.A = null; return; }
-  const M0 = nightMorning(nowSec(), S.night);
+  const M0 = nightMorning(nowSec(), S.night), ageH = (Date.now() - S.D.at) / 3600000;
+  if (ageH > STALE_H) { S.A = { M0, score: null, level: null, blocked: 'stale', ageH, towns: [], parts: null }; return; }
   S.A = analyzeNight(S.D, M0); S.A.strip = stripData(S.D, M0);
 }
 function renderAll() { analyze(); renderStatic(); renderFresh(); renderSettings(); renderLive(); renderVerdict(); renderTowns(); renderMapAll(); }
@@ -1400,7 +1441,7 @@ function renderVerdict() {
   $('vNight').textContent = (T('nightRel')[rel] || '') + '  ' + T('nightDate', mytParts(M0 - 86400), mytParts(M0));
   if (!A || A.score == null) {
     $('vLevel').textContent = S.loading ? T('loading') : T('noData'); $('vScore').textContent = '';
-    $('vReason').textContent = A && !S.loading ? T('nightNoData') : '';
+    $('vReason').textContent = !A || S.loading ? '' : A.blocked === 'stale' ? T('blkStale', Math.floor(A.ageH)) : A.blocked === 'missing' ? T('blkMissing', A.lacking.map(k => T('ing')[k]).join(S.lang === 'zh' ? '、' : ', ')) : T('nightNoData');
     $('vEarly').hidden = true; $('adv').innerHTML = ''; $('strip').innerHTML = ''; $('stripKey').innerHTML = ''; $('ing').innerHTML = ''; return;
   }
   $('vLevel').textContent = T('levels')[A.level];
@@ -1508,6 +1549,7 @@ function renderIngredients() {
 function renderTowns() {
   const A = S.A, box = $('townList');
   if (!A) { box.innerHTML = ''; return; }
+  if (A.blocked === 'stale' || A.blocked === 'window') { box.innerHTML = `<p class="banner red">${esc(A.blocked === 'stale' ? T('blkStale', Math.floor(A.ageH)) : T('nightNoData'))}</p>`; return; }
   const G = { west: [], inland: [], east: [] };
   for (const r of A.towns) G[r.town.g].push(r);
   for (const g in G) G[g].sort((a, b) => (a.first == null) - (b.first == null) || (a.first || 0) - (b.first || 0));   // stable: quiet towns keep map order
@@ -1642,6 +1684,7 @@ function renderWindRead() {
   const box = $('windRead'); if (!box) return;
   if (!FCST_LAYERS.some(k => S.layers[k])) { box.hidden = true; return; }
   box.hidden = false;
+  if (S.A && S.A.blocked === 'stale') { box.innerHTML = `<p>${esc(T('blkStale', Math.floor(S.A.ageH)))}</p>`; return; }
   const D = S.D, h = D ? D.idx.get(sliderTs()) : null, hh = hhmm(sliderTs());
   if (h == null) { box.innerHTML = `<p>${esc(T('wrNone', hh))}</p>`; return; }
   const out = [];
@@ -1674,6 +1717,7 @@ function renderWindRead() {
 }
 function renderModelLayers() {
   renderWindRead();
+  if (S.A && S.A.blocked === 'stale') { for (const g of ['w850', 'w10', 'rain', 'conv']) if (MAP.groups[g]) MAP.groups[g].clearLayers(); return; }
   if (!MAP.m) return;
   for (const g of ['w850', 'w10', 'rain', 'conv']) MAP.groups[g].clearLayers();
   const D = S.D; if (!D) return;
@@ -1995,11 +2039,31 @@ async function hrpTiles(f) {
   for (const x of [24, 25]) { try { tiles[x + '/15'] = await imgPixels(JMA_HRP(f.b, f.v).replace('{z}', 5).replace('{x}', x).replace('{y}', 15)); } catch (e) {} }
   return tiles;
 }
+const PIXCACHE = new Map();   // per detector run: the same picture is decoded once even when used twice
+async function pixels(url) { if (!PIXCACHE.has(url)) PIXCACHE.set(url, imgPixels(url)); return PIXCACHE.get(url); }
+async function hrpTilesCached(f) { const k = 'hrp:' + f.v; if (!PIXCACHE.has(k)) PIXCACHE.set(k, hrpTiles(f)); return PIXCACHE.get(k); }
+/** combined picture for the state: radar where it sees, JMA Heavy Rain Potential elsewhere */
 async function buildGrid(rf, hf, bb) {
   const v = new Uint8Array(DG.n), cov = new Uint8Array(DG.n); let rErr = null;
-  if (rf) { try { fillRadar(v, cov, await imgPixels(rf.url), bb); } catch (e) { rErr = e.message || String(e); } }
-  if (hf) fillHrp(v, cov, await hrpTiles(hf), 5);
+  if (rf) { try { fillRadar(v, cov, await pixels(rf.url), bb); } catch (e) { rErr = e.message || String(e); } }
+  if (hf) fillHrp(v, cov, await hrpTilesCached(hf), 5);
   return { res: detectGrid(v, cov), rErr };
+}
+/** single-source picture for movement: radar only, or Heavy Rain Potential only over the whole zone */
+async function buildSource(kind, f, bb) {
+  const v = new Uint8Array(DG.n), cov = new Uint8Array(DG.n);
+  if (kind === 'radar') fillRadar(v, cov, await pixels(f.url), bb); else fillHrp(v, cov, await hrpTilesCached(f), 5);
+  return detectGrid(v, cov);
+}
+const nearestTo = (list, c) => (list || []).slice().sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0] || null;
+/** movement of the band, measured with one source only; null when the band is seen by a mix of sources,
+    when the two pictures of that source do not cover the Strait alike, or when no earlier picture exists */
+async function trackBand(c0, src, bb) {
+  const [nowF, pastF] = src.frames; if (!nowF || !pastF) return { mv: null, why: 'nopast' };
+  const a = await buildSource(src.kind, nowF, bb), b = await buildSource(src.kind, pastF, bb);
+  if (Math.abs(a.covFrac - b.covFrac) > 0.1) return { mv: null, why: 'coverage' };
+  const cn = nearestTo(a.clusters, c0); if (!cn) return { mv: null, why: 'nomatch' };
+  return { mv: motion(cn, nearestTo(b.clusters, cn), (nowF.ts - pastF.ts) / 3600), baseTs: nowF.ts };
 }
 async function runDetector() {
   if (LIVE.busy) return; LIVE.busy = true;
@@ -2014,20 +2078,25 @@ async function runDetector() {
     const hNow = hOld ? null : hLast;
     const hPast = hNow ? hr.slice().reverse().find(f => hNow.ts - f.ts >= DET.lookMin * 60 - 300) || null : null;
     if (!rNow && !hNow) throw new Error(rOld || hOld ? T('lvStale') : (N.err || 'no radar or satellite pictures'));
+    PIXCACHE.clear();
     const now = await buildGrid(rNow, hNow, bb);
-    let mv = null;
-    if (now.res.cluster && (rPast || hPast)) {
-      const past = await buildGrid(rPast, hPast, bb);
-      const dt = (rNow && rPast ? rNow.ts - rPast.ts : hNow && hPast ? hNow.ts - hPast.ts : 0) / 3600;
-      const c0 = now.res.cluster;   // match to the SAME storm half an hour ago: the nearest group, not simply the biggest
-      const prev = (past.res.clusters || []).slice().sort((a, b) => Math.hypot(a.x - c0.x, a.y - c0.y) - Math.hypot(b.x - c0.x, b.y - c0.y))[0] || null;
-      mv = motion(c0, prev, dt);
+    let mv = null, baseTs = null, why = null;
+    const c0 = now.res.cluster;
+    if (c0) {
+      // the band's movement is measured with whichever source sees (almost) all of it — never a radar/satellite mix
+      const kind = motionSource(c0, !!(rNow && !now.rErr), !!hNow);
+      const src = kind === 'radar' ? { kind, frames: [rNow, rPast] } : kind === 'hrp' ? { kind, frames: [hNow, hPast] } : null;
+      if (src) { try { const t = await trackBand(c0, src, bb); mv = t.mv; baseTs = t.baseTs || null; why = t.why || null; } catch (e) { why = 'error'; } }
+      else why = 'mixed';
+      if (!baseTs) baseTs = c0.radarShare >= 0.5 && rNow ? rNow.ts : hNow ? hNow.ts : rNow ? rNow.ts : null;
     }
     const notes = [];
+    if (c0 && c0.isLine && !mv && why === 'mixed') notes.push(T('lvMixed'));
+    if (c0 && c0.isLine && !mv && why === 'coverage') notes.push(T('lvCovChange'));
     if (rOld) notes.push(T('lvRadarOld', Math.round((tnow - rLast.ts) / 60)));
     else if (now.rErr) notes.push(T('lvRadarFail', now.rErr));
     if (hOld) notes.push(T('lvHrpOld', Math.round((tnow - hLast.ts) / 60)));
-    Object.assign(LIVE, { res: now.res, mv, notes, err: now.rErr && !hNow ? now.rErr : null, rTs: rNow && !now.rErr ? rNow.ts : null, hTs: hNow ? hNow.ts : null, at: Date.now() });
+    Object.assign(LIVE, { res: now.res, mv, notes, err: now.rErr && !hNow ? now.rErr : null, rTs: rNow && !now.rErr ? rNow.ts : null, hTs: hNow ? hNow.ts : null, baseTs, at: Date.now() });
     LIVE.state = liveState(now.res, mv);
   } catch (e) { Object.assign(LIVE, { state: 'nodata', err: e.message || String(e), res: null, mv: null, at: Date.now() }); }
   LIVE.busy = false;
@@ -2035,21 +2104,26 @@ async function runDetector() {
 }
 function renderLive() {
   const box = $('live'), body = $('liveBody');
-  const st = LIVE.state || (LIVE.busy || !LIVE.at ? null : 'nodata');
+  let st = LIVE.state || (LIVE.busy || !LIVE.at ? null : 'nodata');
+  // an old reading is never shown as current: pictures older than 40 min, or a reading not renewed for 15 min
+  const pic = LIVE.baseTs || LIVE.rTs || LIVE.hTs;
+  if (st && st !== 'nodata' && ((pic && nowSec() - pic > 40 * 60) || Date.now() - LIVE.at > 15 * 60000)) { st = 'nodata'; LIVE.expired = true; } else LIVE.expired = false;
   box.className = 'blk live' + (st ? ' ' + st : '');
   if (!st) { body.innerHTML = `<div class="lvstate">${esc(T('loading'))}</div>`; return; }
   const c = LIVE.res && LIVE.res.cluster, h = mytParts(nowSec()).h, squallHours = h >= 22 || h < 11;
   const nm = squallHours ? T('nmSquall') : T('nmBand');
   let html = `<div class="lvstate">${esc(T('lvState')[st])}</div><p class="vreason">`;
-  if (st === 'nodata') html += esc(T('lvNoData', LIVE.err || '—'));
+  if (st === 'nodata') html += esc(LIVE.expired ? T('lvExpired') : T('lvNoData', LIVE.err || '—'));
   else if (st === 'clear') html += esc(T('lvClear'));
+  else if (st === 'clearPart') html += esc(T('lvClearPart', Math.round(LIVE.res.covFrac * 100), LIVE.res.unseen.map(k => T('sect')[k]).join(S.lang === 'zh' ? '、' : ', ')));
   else if (st === 'scattered') html += esc(T('lvScattered'));
   else if (st === 'line') html += esc(T('lvLine', nm));
   else html += esc(T('lvApproach', nm, dirName(LIVE.mv.dir), Math.round(LIVE.mv.kmh)));
+  if (st !== 'nodata' && st !== 'clear' && st !== 'clearPart' && LIVE.res && LIVE.res.covFrac < DET.fullCov && LIVE.res.unseen.length) html += ' ' + esc(T('lvPartNote', LIVE.res.unseen.map(k => T('sect')[k]).join(S.lang === 'zh' ? '、' : ', ')));
   if (c && (st === 'line' || st === 'approach')) html += ' ' + esc(T('lvDims', Math.round(c.len / 10) * 10, Math.round(c.km2 / 100) * 100));
   html += '</p>';
   if (st === 'approach' || st === 'line') {
-    const now = nowSec(), base = LIVE.rTs || LIVE.hTs || now;   // the band was where it was at the picture's time
+    const now = nowSec(), base = LIVE.baseTs || LIVE.rTs || LIVE.hTs || now;   // counted from the time of the picture the band was measured on
     const arr = e => base + Math.round(e.h * 3600), left = e => Math.max(0, (arr(e) - now) / 3600);
     const hm = homeTown(), places = TOWNS.filter(t => t.g !== 'east').concat(hm && hm.custom && hm.g !== 'east' ? [hm] : []);
     const rows = places.map(t => ({ t, e: lineEta(c, LIVE.mv, t.lat, t.lon) }))
@@ -2103,7 +2177,7 @@ document.addEventListener('click', ev => {
   else if (b.dataset.go) { $(b.dataset.go).scrollIntoView({ behavior: 'smooth' }); }
   else if (b.dataset.lang) { setLang(b.dataset.lang); $('langOvl').hidden = true; }
   else if (b.dataset.homepick) showHomePicker();
-  else if (b.dataset.home) { S.home = b.dataset.home; lsSet(LSK.home, S.home); $('homeOvl').hidden = true; renderAll(); }
+  else if (b.dataset.home) { S.home = b.dataset.home; lsSet(LSK.home, S.home); if (S.D && S.D.towns) delete S.D.towns.home; S.homeReq = (S.homeReq || 0) + 1; $('homeOvl').hidden = true; renderAll(); }
   else if (b.id === 'homeClose') $('homeOvl').hidden = true;
 });
 $('btnReload').onclick = () => refresh(true);
@@ -2155,6 +2229,7 @@ function setCustomHome(la, lo, src) {
   la = Math.round(la * 1000) / 1000; lo = Math.round(lo * 1000) / 1000;          // ~100 m: plenty for a 9 km model, less precise to store
   if (!inCover(la, lo)) { $('homeMsg').textContent = T('coordOut'); return false; }
   S.home = { lat: la, lon: lo, src }; S.homeErr = null; lsSet(LSK.home, S.home);
+  if (S.D && S.D.towns) delete S.D.towns.home;           // the previous point's rain must not show under the new point
   $('homeOvl').hidden = true; renderAll(); loadHome(true); return true;
 }
 /** the model's hourly rain for the user's own point (one extra Open-Meteo location, cached like the rest) */
@@ -2164,18 +2239,23 @@ function attachHome(c) {
   for (const key of Object.values(TKEYS)) o[key] = S.D.times.map(ts => { const i = off.get(ts); return i == null ? null : c.t.series[key][0][i]; });
   S.D.towns.home = o;
 }
+function homeCacheOk(c, h, model, id) {   // same point, same model run, and not older than the main forecast allows
+  return !!c && !!h && c.lat === h.lat && c.lon === h.lon && c.model === model && c.id === id && (Date.now() - c.at) / 3600000 <= STALE_H;
+}
 async function loadHome(force) {
   const h = homeTown(); if (!h || !h.custom || !S.D) return;
-  const id = S.D.townId || MODELS[S.D.model].towns[0], key = LSK.homeCache + S.D.model;
+  const model = S.D.model, id = S.D.townId || MODELS[model].towns[0], key = LSK.homeCache + model;
   let c = lsGet(key, null);
-  const same = !!c && c.lat === h.lat && c.lon === h.lon && c.id === id;
+  const same = homeCacheOk(c, h, model, id);
   if (same) attachHome(c);
   if (!force && same && Date.now() - c.at < MIN_RELOAD_MIN * 60000) return;
+  const req = S.homeReq = (S.homeReq || 0) + 1;         // only the newest request may land
   S.homeLoading = true; S.homeErr = null;
-  try {
-    const t = parseMulti(await fetchJSON(omURL([h], TVARS, id, null)), 1, TKEYS);
-    c = { lat: h.lat, lon: h.lon, id, at: Date.now(), t }; lsSet(key, c); attachHome(c);
-  } catch (e) { S.homeErr = e.message || String(e); }
+  let t = null, err = null;
+  try { t = parseMulti(await fetchJSON(omURL([h], TVARS, id, null)), 1, TKEYS); } catch (e) { err = e.message || String(e); }
+  const cur = homeTown();
+  if (req !== S.homeReq || !cur || !cur.custom || cur.lat !== h.lat || cur.lon !== h.lon || !S.D || S.D.model !== model) return;   // superseded: drop it
+  if (t) { c = { lat: h.lat, lon: h.lon, model, id, at: Date.now(), t }; lsSet(key, c); attachHome(c); } else S.homeErr = err;
   S.homeLoading = false; renderAll();
 }
 function showHomePicker() {
@@ -2243,6 +2323,7 @@ function boot() {
     if (MAP.m) { syncSat(); syncHrp(); }                   // both limit themselves to one reload per 10 min
     const hr = Math.floor(nowSec() / 3600);
     if (hr !== lastHour) { lastHour = hr; renderAll(); }   // "now" cell, 10:00 switch to the next night, live wording
+    else { renderLive(); if (S.A === null || (S.D && (Date.now() - S.D.at) / 3600000 > STALE_H)) renderAll(); }   // expiry of live and forecast shows even without new data
   };
   setInterval(tick, 60000);
   document.addEventListener('visibilitychange', tick);
