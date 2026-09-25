@@ -349,7 +349,7 @@ nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;bord
    All times are Malaysia Standard Time (UTC+8, no DST): data is fetched in GMT
    as unixtime and shifted by a fixed +8 h, so the device clock never matters.
    ========================================================================== */
-const VERSION = 'ssw-20260925-25';
+const VERSION = 'ssw-20260925-27';
 const MYT = 8 * 3600;
 const APP_NAME = '苏门答腊飑线 Sumatra Squall';   // must equal "name" in manifest.json
 const APP_URL = 'https://stanleywoosweeleong.github.io/SumatraSquall/';   // what the QR code and the WhatsApp message point to
@@ -747,6 +747,7 @@ zh: {
   nightRel:['昨夜→今早','今晚→明早','明晚→后天早上'],
   nightDate:(e,m)=> e.mo===m.mo ? `${e.mo}月${e.d}日夜→${m.d}日早` : `${e.mo}月${e.d}日夜→${m.mo}月${m.d}日早`,
   fresh:(model,time,ago)=>`模型 ${model}，读取于 ${time}（MYT，${ago}）`,
+  srcSurf:n=>`${n}（地面风、雨）`, srcUpper:n=>`${n}（850/700 百帕风）`,
   agoMin:n=>`${n} 分钟前`, agoH:n=>`${n} 小时前`,
   reload:'重新读取', reloadNext:t=>`下次可读取 ${t}`, loading:'读取中…',
   errNoData:r=>`无法读取模型数据：${r}。请检查网络后点「重新读取」。`,
@@ -862,6 +863,7 @@ zh: {
   wrRain:(hh,p,x)=>`模型雨量 ${hh}：海峡上 ${p}% 的格点有 ≥2 mm/h 的雨，最大 ${x} mm/h。`,
   wrConvUp:(hh,x)=>`辐合 ${hh}：海峡平均 +${x} ×10⁻⁵ s⁻¹——低层空气在海上汇合、被抬升，有利雷暴形成。`,
   wrConvDown:(hh,x)=>`辐合 ${hh}：海峡平均 −${x} ×10⁻⁵ s⁻¹——空气向外散开，不利雷暴形成。`,
+  wrConvNone:hh=>`${hh} 海峡上的辐合和辐散都很弱，地图上没有色块。移动滑杆到凌晨时段（约 01–06 时）通常较明显。`,
   wrAuto:'已自动打开「引导风 850」和「模型雨量」，让滑杆有东西可看。',
   wrSteer:(hh,d,k,v)=>`引导风 ${hh}（海峡平均，850–700 百帕）：来自${d}，约 ${k} km/h——${v}。`,
   wrGood:'会把海峡上形成的风暴推向马来西亚', wrWeak:'太弱，风暴几乎推不动', wrWrong:'这个方向不会把风暴推向马来西亚',
@@ -874,7 +876,7 @@ zh: {
   lgNea:'新加坡雷达：颜色由浅到深 = 雨由小到大（完整图例见 weather.gov.sg）', lgBox:'白色点线框 = 新加坡雷达覆盖范围，框外空白不代表没有雨',
   satNote:'红外图看的是云顶温度，不是地面雨量：越白（越冷）的云顶越高、对流越强。飑线是一条南北向的冷云带；云砧会向外扩散几十公里，所以位置只是近似。',
   hrpTime:t=>`强雨域推定 ${t} MYT`, hrpGive:'强雨域推定暂时读取不到。', lgHrp:'强雨域推定 = JMA 用卫星估算的强降雨区，颜色越深越强（完整图例见 JMA 页面）',
-  lgRain:'模型雨量 mm/h', lgWind:'风速 km/h', lgConv:'红 = 辐合（空气被抬升）、蓝 = 辐散', lgAxis:'青色虚线 = 海峡中线（固定的参考线，不是飑线）', lgLive:'红色粗线 + 箭头 = 软件自动认出的雷雨带和移动方向（检测到时才出现）',
+  lgRain:'模型雨量 mm/h', lgWind:'风速 km/h', lgConv:'辐合：红格 = 空气汇合被抬升，蓝格 = 空气散开；颜色越浓越强；只画在海峡中线两侧约 70 公里内', lgAxis:'青色虚线 = 海峡中线（固定的参考线，不是飑线）', lgLive:'红色粗线 + 箭头 = 软件自动认出的雷雨带和移动方向（检测到时才出现）',
   mapErr:'地图程序库未能载入——首次使用需要联网一次。其余部分照常可用。',
   etaIn:(d,t)=>`约 ${d}后（${t}）`, etaLong:'6 小时以上——引导风太弱，飑线多半撑不到这里',
   townsHead:'城镇', townsSub:'所选那一夜 00–10 时（MYT，飑线时段）的模型信号。「信号」= 某小时 ≥2 mm/h 雨或阵风 ≥45 km/h。',
@@ -922,6 +924,7 @@ en: {
   nightRel:['Last night → this morning','Tonight → tomorrow morning','Tomorrow night → morning after'],
   nightDate:(e,m)=> e.mo===m.mo ? `Night of ${e.d}→${m.d} ${MON_EN[m.mo-1]}` : `Night of ${e.d} ${MON_EN[e.mo-1]} → ${m.d} ${MON_EN[m.mo-1]}`,
   fresh:(model,time,ago)=>`Model ${model}, fetched ${time} MYT (${ago})`,
+  srcSurf:n=>`${n} (surface wind, rain)`, srcUpper:n=>`${n} (850/700 hPa wind)`,
   agoMin:n=>`${n} min ago`, agoH:n=>`${n} h ago`,
   reload:'Reload', reloadNext:t=>`Next reload ${t}`, loading:'Loading…',
   errNoData:r=>`Could not load model data: ${r}. Check your connection, then tap Reload.`,
@@ -1037,6 +1040,7 @@ en: {
   wrRain:(hh,p,x)=>`Model rain at ${hh}: ${p}% of Strait points get ≥2 mm/h, up to ${x} mm/h.`,
   wrConvUp:(hh,x)=>`Convergence at ${hh}: Strait mean +${x} ×10⁻⁵ s⁻¹ — low-level air meets over the sea and is lifted, which helps storms form.`,
   wrConvDown:(hh,x)=>`Convergence at ${hh}: Strait mean −${x} ×10⁻⁵ s⁻¹ — the air is spreading out, which works against storms.`,
+  wrConvNone:hh=>`At ${hh} convergence and divergence over the Strait are both weak, so no squares are drawn. Move the slider to the small hours (about 01–06), when it is usually clearer.`,
   wrAuto:'"Steering wind 850" and "Model rain" were switched on so the slider has something to show.',
   wrSteer:(hh,d,k,v)=>`Steering wind at ${hh} (Strait mean, 850–700 hPa): from the ${d}, about ${k} km/h — ${v}.`,
   wrGood:'it will push storms that form over the Strait toward Malaysia', wrWeak:'too weak to move storms much', wrWrong:'this direction does not push storms toward Malaysia',
@@ -1049,7 +1053,7 @@ en: {
   lgNea:'Singapore radar: light to dark = light to heavy rain (full legend on weather.gov.sg)', lgBox:'white dotted box = Singapore radar coverage; blank outside it does not mean dry',
   satNote:'Infrared shows cloud-top temperature, not rain at the ground: the whiter (colder) the top, the taller and stronger the storm. A squall line is a north–south band of cold tops; the anvil spreads tens of km, so positions are approximate.',
   hrpTime:t=>`Heavy Rain Potential ${t} MYT`, hrpGive:'Heavy Rain Potential is not available right now.', lgHrp:'Heavy Rain Potential = the JMA satellite estimate of heavy rain; darker = heavier (full legend on the JMA page)',
-  lgRain:'Model rain mm/h', lgWind:'Wind km/h', lgConv:'red = converging (air lifted), blue = diverging', lgAxis:'cyan dashed = Strait mid-line (a fixed reference, not a squall line)', lgLive:'thick red line + arrow = storm band the app found and its direction (appears only when one is detected)',
+  lgRain:'Model rain mm/h', lgWind:'Wind km/h', lgConv:'convergence: red squares = air converging and lifted, blue = spreading out; stronger = more solid; drawn only within about 70 km of the Strait mid-line', lgAxis:'cyan dashed = Strait mid-line (a fixed reference, not a squall line)', lgLive:'thick red line + arrow = storm band the app found and its direction (appears only when one is detected)',
   mapErr:'The map library did not load — it needs the internet once. Everything else still works.',
   etaIn:(d,t)=>`in about ${d} (${t})`, etaLong:'more than 6 h — steering too weak; the line is unlikely to last that long',
   townsHead:'Towns', townsSub:'Model signals for the chosen night, 00:00–10:00 MYT (the squall window). "Signal" = an hour with ≥2 mm/h rain or a gust ≥45 km/h.',
@@ -1097,6 +1101,7 @@ ms: {
   nightRel:['Malam tadi → pagi ini','Malam ini → esok pagi','Esok malam → lusa pagi'],
   nightDate:(e,m)=> e.mo===m.mo ? `Malam ${e.d}→${m.d} ${MON_MS[m.mo-1]}` : `Malam ${e.d} ${MON_MS[e.mo-1]} → ${m.d} ${MON_MS[m.mo-1]}`,
   fresh:(model,time,ago)=>`Model ${model}, dimuat ${time} MYT (${ago})`,
+  srcSurf:n=>`${n} (angin permukaan, hujan)`, srcUpper:n=>`${n} (angin 850/700 hPa)`,
   agoMin:n=>`${n} minit lalu`, agoH:n=>`${n} jam lalu`,
   reload:'Muat semula', reloadNext:t=>`Muat semula seterusnya ${t}`, loading:'Memuat…',
   errNoData:r=>`Data model gagal dimuat: ${r}. Semak sambungan, kemudian tekan Muat semula.`,
@@ -1212,6 +1217,7 @@ ms: {
   wrRain:(hh,p,x)=>`Hujan model ${hh}: ${p}% titik Selat menerima ≥2 mm/j, sehingga ${x} mm/j.`,
   wrConvUp:(hh,x)=>`Penumpuan ${hh}: purata Selat +${x} ×10⁻⁵ s⁻¹ — udara aras rendah bertemu di atas laut dan terangkat, membantu ribut terbentuk.`,
   wrConvDown:(hh,x)=>`Penumpuan ${hh}: purata Selat −${x} ×10⁻⁵ s⁻¹ — udara mencapah, tidak membantu ribut.`,
+  wrConvNone:hh=>`Pada ${hh} penumpuan dan pencapahan di atas Selat kedua-duanya lemah, jadi tiada petak dilukis. Gerakkan gelangsar ke awal pagi (kira-kira 01–06), biasanya lebih jelas.`,
   wrAuto:'"Angin pemandu 850" dan "Hujan model" dihidupkan supaya gelangsar ada sesuatu untuk ditunjukkan.',
   wrSteer:(hh,d,k,v)=>`Angin pemandu ${hh} (purata Selat, 850–700 hPa): dari ${d}, kira-kira ${k} km/j — ${v}.`,
   wrGood:'ia akan menolak ribut yang terbentuk di atas Selat ke arah Malaysia', wrWeak:'terlalu lemah untuk menggerakkan ribut', wrWrong:'arah ini tidak menolak ribut ke arah Malaysia',
@@ -1224,7 +1230,7 @@ ms: {
   lgNea:'Radar Singapura: cerah ke gelap = hujan ringan ke lebat (petunjuk penuh di weather.gov.sg)', lgBox:'kotak titik putih = liputan radar Singapura; kosong di luarnya tidak bermaksud kering',
   satNote:'Inframerah menunjukkan suhu puncak awan, bukan hujan di tanah: makin putih (sejuk) puncaknya, makin tinggi dan kuat ribut itu. Garis badai ialah jalur utara–selatan puncak sejuk; andas awan merebak berpuluh km, jadi kedudukan hanya anggaran.',
   hrpTime:t=>`Anggaran Hujan Lebat ${t} MYT`, hrpGive:'Anggaran Hujan Lebat tiada buat masa ini.', lgHrp:'Anggaran Hujan Lebat = anggaran kawasan hujan lebat oleh JMA daripada satelit; makin gelap makin lebat (petunjuk penuh di laman JMA)',
-  lgRain:'Hujan model mm/j', lgWind:'Angin km/j', lgConv:'merah = menumpu (udara diangkat), biru = mencapah', lgAxis:'garis putus sian = garis tengah Selat (rujukan tetap, bukan garis badai)', lgLive:'garis merah tebal + anak panah = jalur ribut yang dikesan perisian dan arahnya (muncul hanya apabila dikesan)',
+  lgRain:'Hujan model mm/j', lgWind:'Angin km/j', lgConv:'penumpuan: petak merah = udara menumpu dan terangkat, biru = mencapah; lebih pekat = lebih kuat; dilukis hanya dalam kira-kira 70 km dari garis tengah Selat', lgAxis:'garis putus sian = garis tengah Selat (rujukan tetap, bukan garis badai)', lgLive:'garis merah tebal + anak panah = jalur ribut yang dikesan perisian dan arahnya (muncul hanya apabila dikesan)',
   mapErr:'Pustaka peta gagal dimuat — perlukan internet sekali. Bahagian lain masih berfungsi.',
   etaIn:(d,t)=>`dalam kira-kira ${d} (${t})`, etaLong:'lebih 6 jam — angin pemandu terlalu lemah; garis badai mungkin tidak bertahan selama itu',
   townsHead:'Bandar', townsSub:'Isyarat model untuk malam dipilih, 00:00–10:00 MYT (tempoh garis badai). "Isyarat" = jam dengan hujan ≥2 mm/j atau tiupan ≥45 km/j.',
@@ -1287,12 +1293,15 @@ function f1(x) { return (Math.round(x * 10) / 10).toFixed(1); }
 
 /* ---------- data ---------- */
 const MODELS = {
-  // Grid needs 850/700 hPa winds: Open-Meteo's ECMWF 9 km run returns them all null (checked live 2026-09-24),
-  // so the grid uses the 0.25° run; towns use 9 km for sharper local rain and gusts.
-  ecmwf: { label: 'ECMWF', grid: ['ecmwf_ifs025'], towns: ['ecmwf_ifs', 'ecmwf_ifs025'], names: { ecmwf_ifs:'ECMWF IFS 9 km', ecmwf_ifs025:'ECMWF IFS 0.25°' } },
-  gfs:   { label: 'GFS',   grid: ['gfs_seamless'], towns: ['gfs_seamless'], names: { gfs_seamless:'NOAA GFS' } },
+  // ECMWF: surface fields (10 m wind, gusts, rain, CAPE) from the 9 km run, which resolves the night land breezes
+  // meeting over the Strait; 850/700 hPa winds from the 0.25° run, because Open-Meteo's 9 km run has no
+  // pressure-level winds (all null, checked live 2026-09-24). Two grid requests, merged hour by hour.
+  ecmwf: { label: 'ECMWF', grid: ['ecmwf_ifs', 'ecmwf_ifs025'], upper: ['ecmwf_ifs025'], towns: ['ecmwf_ifs', 'ecmwf_ifs025'], names: { ecmwf_ifs:'ECMWF IFS 9 km', ecmwf_ifs025:'ECMWF IFS 0.25°' } },
+  gfs:   { label: 'GFS',   grid: ['gfs_seamless'], upper: null, towns: ['gfs_seamless'], names: { gfs_seamless:'NOAA GFS' } },
 };
-const GVARS = ['wind_speed_10m','wind_direction_10m','wind_gusts_10m','precipitation','cape','wind_speed_850hPa','wind_direction_850hPa','wind_speed_700hPa','wind_direction_700hPa'];
+const SURF_VARS = ['wind_speed_10m','wind_direction_10m','wind_gusts_10m','precipitation','cape'];
+const UPPER_VARS = ['wind_speed_850hPa','wind_direction_850hPa','wind_speed_700hPa','wind_direction_700hPa'];
+const GVARS = SURF_VARS.concat(UPPER_VARS);
 const GKEYS = { wind_speed_10m:'ws10', wind_direction_10m:'wd10', wind_gusts_10m:'gu10', precipitation:'pr', cape:'cape', wind_speed_850hPa:'ws850', wind_direction_850hPa:'wd850', wind_speed_700hPa:'ws700', wind_direction_700hPa:'wd700' };
 const TVARS = ['precipitation','wind_gusts_10m','cape'];
 const TKEYS = { precipitation:'pr', wind_gusts_10m:'gu', cape:'cape' };
@@ -1354,14 +1363,27 @@ async function tryIds(ids, fn) {
 function nullVars(series, keymap) {
   return Object.entries(keymap).filter(([v, k]) => series[k].every(arr => arr.every(x => x == null))).map(([v]) => v);
 }
+const pick = (keymap, vars) => Object.fromEntries(vars.map(v => [v, keymap[v]]));
+/** hour-by-hour merge of the upper-air grid into the surface grid (same points, times matched exactly) */
+function mergeGrid(surf, upper) {
+  const off = new Map(upper.times.map((ts, i) => [ts, i]));
+  for (const [key, arr] of Object.entries(upper.series)) surf.series[key] = arr.map(pt => surf.times.map(ts => { const i = off.get(ts); return i == null ? null : pt[i]; }));
+  return surf;
+}
 async function loadModel(model) {
   const M = MODELS[model];
-  const G = await tryIds(M.grid, id => fetchJSON(omURL(GPTS, GVARS, id, 'nearest')).then(j => parseMulti(j, GPTS.length, GKEYS)));
+  // requests go one after another (Open-Meteo throttles bursts): surface grid, upper-air grid, towns
+  const G = await tryIds(M.grid, id => fetchJSON(omURL(GPTS, M.upper ? SURF_VARS : GVARS, id, 'nearest')).then(j => parseMulti(j, GPTS.length, M.upper ? pick(GKEYS, SURF_VARS) : GKEYS)));
+  let upperId = null;
+  if (M.upper) {
+    try { const U = await tryIds(M.upper, id => fetchJSON(omURL(GPTS, UPPER_VARS, id, 'nearest')).then(j => parseMulti(j, GPTS.length, pick(GKEYS, UPPER_VARS)))); mergeGrid(G.v, U.v); upperId = U.id; }
+    catch (e) { for (const v of UPPER_VARS) G.v.series[GKEYS[v]] = GPTS.map(() => G.v.times.map(() => null)); }   // shows as empty 850/700 hPa below — never silently
+  }
   let t = null, townErr = null, townId = null;
   try { const R = await tryIds(M.towns, id => fetchJSON(omURL(TOWNS, TVARS, id, null)).then(j => parseMulti(j, TOWNS.length, TKEYS))); t = R.v; townId = R.id; }
   catch (e) { townErr = e.message; }
   const empty = nullVars(G.v.series, GKEYS).concat(t ? nullVars(t.series, TKEYS).map(v => v + ' (towns)') : []);
-  return { raw: { model, modelId: G.id, townId, at: Date.now(), g: G.v, t, empty }, fell: G.i > 0 ? [M.names[M.grid[0]], M.names[G.id]] : null, townErr };
+  return { raw: { model, modelId: G.id, upperId, townId, at: Date.now(), g: G.v, t, empty }, fell: G.i > 0 ? [M.names[M.grid[0]], M.names[G.id]] : null, townErr };
 }
 function cacheKey(model) { return LSK.cache + model; }
 
@@ -1383,7 +1405,7 @@ async function refresh(force) {
   if (S.pending) { S.pending = false; refresh(false); }
 }
 function useRaw(raw) {
-  S.D = buildD(raw.model, raw.modelId, raw.at, raw.g, raw.t); S.D.townId = raw.townId || null; S.D.empty = raw.empty || [];
+  S.D = buildD(raw.model, raw.modelId, raw.at, raw.g, raw.t); S.D.townId = raw.townId || null; S.D.upperId = raw.upperId || null; S.D.empty = raw.empty || [];
   const h = homeTown(), c = h && h.custom ? lsGet(LSK.homeCache + raw.model, null) : null;
   if (homeCacheOk(c, h, raw.model, S.D.townId || MODELS[raw.model].towns[0])) attachHome(c);   // no flicker, but never a stale or foreign point
 }
@@ -1428,8 +1450,11 @@ function renderFresh() {
   if (S.D) {
     const mins = Math.round((Date.now() - S.D.at) / 60000);
     const ago = mins < 90 ? T('agoMin', mins) : T('agoH', Math.round(mins / 60));
-    const Mn = MODELS[S.D.model].names, gName = Mn[S.D.modelId] || S.D.modelId;
-    const mName = S.D.townId && S.D.townId !== S.D.modelId ? gName + ' + ' + (Mn[S.D.townId] || S.D.townId) : gName;
+    const Mn = MODELS[S.D.model].names, nm = id => Mn[id] || id;
+    const parts = [S.D.upperId && S.D.upperId !== S.D.modelId ? T('srcSurf', nm(S.D.modelId)) : nm(S.D.modelId)];
+    if (S.D.upperId && S.D.upperId !== S.D.modelId) parts.push(T('srcUpper', nm(S.D.upperId)));
+    if (S.D.townId && S.D.townId !== S.D.modelId) parts.push(nm(S.D.townId));
+    const mName = parts.join(' + ');
     f.textContent = T('fresh', mName, hhmm(Math.floor(S.D.at / 1000)), ago);
   } else f.textContent = S.loading ? T('loading') : '';
   if (S.loading) { btn.disabled = true; btn.textContent = T('loading'); return; }
@@ -1731,6 +1756,7 @@ function initMap() {
   L.polyline(AXIS, { color: '#9fe6ee', weight: 2.5, dashArray: '8 7', interactive: false, pane: 'model' }).addTo(MAP.groups.axis);
   m.attributionControl.addAttribution('<a href="https://open-meteo.com/">Open-Meteo</a>');
 }
+const CONV_DRAW = 0.2e-5;   // s^-1: weaker cells are not drawn
 const SPD_COL = [[15,'#ffffff'],[30,'#5fe3f0'],[45,'#ffd400'],[1e9,'#ff4d4d']];
 const RAIN_COL = [[0.5,null],[2.5,'#8ec5ff'],[7,'#3d8bff'],[20,'#ffb000'],[1e9,'#ff3df0']];
 function colBy(tab, x) { for (const [lim, c] of tab) if (x < lim) return c; return tab[tab.length - 1][1]; }
@@ -1776,7 +1802,9 @@ function renderWindRead() {
   }
   if (S.layers.conv) {
     let cs = 0, cn = 0; for (const k of STRAIT_INNER) { const c = convAt(D.grid, k, h); if (c != null) { cs += c; cn++; } }
+    let drawn = 0; for (const k of STRAIT_INNER) { const c = convAt(D.grid, k, h); if (c != null && Math.abs(c) >= CONV_DRAW) drawn++; }
     if (cn) { const m = cs / cn; out.push(T(m > 0 ? 'wrConvUp' : 'wrConvDown', hh, f1(Math.abs(m) * 1e5))); }
+    if (!drawn) out.push(T('wrConvNone', hh));
   }
   if (S.autoOn) { out.push(T('wrAuto')); S.autoOn = false; }
   if (curView === 'east') out.push(T('wrArea'));
@@ -1795,8 +1823,8 @@ function renderModelLayers() {
     L.rectangle([[p.lat - 0.25, p.lon - 0.25], [p.lat + 0.25, p.lon + 0.25]], { renderer: MAP.cv, stroke: false, fillColor: c, fillOpacity: 0.55, interactive: false }).addTo(MAP.groups.rain);
   }
   if (S.layers.conv) for (const k of STRAIT_INNER) {
-    const c = convAt(G, k, h); if (c == null || Math.abs(c) < 0.5e-5) continue; const p = GPTS[k];
-    L.rectangle([[p.lat - 0.25, p.lon - 0.25], [p.lat + 0.25, p.lon + 0.25]], { renderer: MAP.cv, stroke: false, fillColor: c > 0 ? '#d62d20' : '#2f6fd6', fillOpacity: clamp(Math.abs(c) / 3e-5, 0.15, 0.6), interactive: false }).addTo(MAP.groups.conv);
+    const c = convAt(G, k, h); if (c == null || Math.abs(c) < CONV_DRAW) continue; const p = GPTS[k], col = c > 0 ? '#ff3b30' : '#3d8bff';
+    L.rectangle([[p.lat - 0.24, p.lon - 0.24], [p.lat + 0.24, p.lon + 0.24]], { renderer: MAP.cv, color: col, weight: 1.5, opacity: 0.9, fillColor: col, fillOpacity: clamp(Math.abs(c) / 2e-5, 0.3, 0.75), interactive: false }).addTo(MAP.groups.conv);
   }
   const drawWind = (grp, sk, dk, wgt) => {
     for (const p of GPTS) {
